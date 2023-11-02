@@ -1,0 +1,8 @@
+private/
+
+# Quarto
+README.html
+README_files/
+
+# macOS
+.DS_Store

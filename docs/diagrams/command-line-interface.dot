@@ -1,0 +1,57 @@
+digraph G {
+  rankdir = LR;
+  node [shape = box, style = rounded];
+  
+  cli [label = "CLI";];
+  
+  // Commands related to tests
+  subgraph cluster_0 {
+    label = "Tests";
+    
+    tests [label = "tests";];
+    list_tests [label = "list";];
+    count_tests [label = "count";];
+    run_tests [label = "run";];
+    
+    tests -> list_tests;
+    tests -> count_tests;
+    tests -> run_tests;
+
+    dependencies [label = "dependencies";];
+    list_dependencies [label = "list";];
+    count_dependencies [label = "count";];
+    check_dependencies [label = "check";];
+    resolve_dependencies [label = "resolve";];
+    
+    dependencies -> list_dependencies;
+    dependencies -> count_dependencies;
+    dependencies -> check_dependencies;
+    dependencies -> resolve_dependencies;
+  }
+  cli -> tests;
+  cli -> dependencies;
+  
+  // Commands related to executing commands
+  subgraph cluster_2 {
+    label = "Commands";
+    
+    commands [label = "commands";];
+    run [label = "run";];
+    
+    commands -> execute;
+  }
+  cli -> commands;
+  
+  // Commands related to observing processes
+  subgraph cluster_3 {
+    label = "Processes";
+    
+    processes [label = "processes";];
+    list_processes [label = "list";];
+    count_processes [label = "count";];
+    
+    processes -> list_processes;
+    processes -> count_processes;
+  }
+  cli -> processes;
+}

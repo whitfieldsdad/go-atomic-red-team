@@ -1,0 +1,8 @@
+{
+  "atomics_dir": "~/src/atomic-red-team/atomics",
+  "tests": [
+    {
+      "elevation_required": true
+    }
+  ]
+}

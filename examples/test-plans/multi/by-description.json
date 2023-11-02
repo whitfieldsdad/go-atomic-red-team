@@ -1,0 +1,14 @@
+{
+  "atomics_dir": "~/src/atomic-red-team/atomics",
+  "platforms": [
+    "windows"
+  ],
+  "tests": [
+    {
+      "description": "*lsass*"
+    },
+    {
+      "description": "* lsa *"
+    }
+  ]
+}

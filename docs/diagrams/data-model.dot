@@ -1,0 +1,67 @@
+digraph G {
+  node [shape=box; style=rounded];
+  edge [dir=none];
+  rankdir=LR;
+
+  client [label="Client"];
+
+  // Atomic Red Team content.
+  atomic_red_team [label="Atomic Red Team"];
+  atomic_red_team_git_repository [label="redcanaryco/atomic-red-team git repository"];
+
+  atomic_red_team_git_repository -> atomic_red_team;
+  atomic_red_team -> client;
+
+  // MITRE ATT&CK STIX 2 content and ATT&CK Navigator layers.
+  mitre_attack_enterprise [label="MITRE ATT&CK Enterprise"];
+  mitre_attack_navigator_layers [label="MITRE ATT&CK Navigator layers"];
+
+  mitre_attack_enterprise -> client;
+  mitre_attack_navigator_layers -> mitre_attack_enterprise [style=dashed];
+  atomic_red_team -> mitre_attack_enterprise [style=dashed];
+
+  // Test plans.
+  test_plans [label="Test plans"];
+  bulk_test_plans [label="Bulk test plans"];
+  multi_test_plans [label="Multi test plans"];
+
+  mitre_attack_navigator_layers -> test_plans;
+  bulk_test_plans -> test_plans;
+  multi_test_plans -> test_plans;
+  test_plans -> client;
+  
+  // Test options.
+  test_options [label="Test options"];
+
+  process_options [label="Process options"];
+  hashing_options [label="Hashing options"];
+  file_options [label="File options"];
+
+  test_options -> client;
+  process_options -> test_options;
+  hashing_options -> file_options -> test_options;
+
+  // Data collection.
+  processes [label="Processes"];
+  commands [label="Commands"];
+  tests [label="Tests"];
+
+  process_start_events [label="Process start events"];
+  process_exit_events [label="Process exit events"];
+  command_start_events [label="Command start events"];
+  command_exit_events [label="Command exit events"];
+  test_start_events [label="Test start events"];
+  test_exit_events [label="Test exit events"];
+
+  client -> tests [label="executes"];
+  tests -> test_start_events [label="generate"; style="dashed"];
+  tests -> test_exit_events [label="generate"; style="dashed"];
+
+  client -> commands [label="executes"];
+  commands -> command_start_events [label="generate"; style="dashed"];
+  commands -> command_exit_events [label="generate"; style="dashed"];
+
+  client -> processes [label="creates"];
+  processes -> process_start_events [label="generate"; style="dashed"];
+  processes -> process_exit_events [label="generate"; style="dashed"];
+}

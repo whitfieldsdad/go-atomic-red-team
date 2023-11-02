@@ -1,0 +1,50 @@
+# TODO
+
+- [ ] Document command aliases
+- [ ] Add ability to limit number of objects returned (e.g. `--limit=1`)
+- [ ] Write script for overwriting bin/\* with the latest binaries
+- [ ] Document client options
+- [ ] Document test options
+- [ ] Write test results to stdout
+- [ ] Write a script to convert test results from JSON to YAML
+- [ ] Write a script to convert test results from YAML to JSON
+- [ ] Write test results to Kafka
+- [ ] Write test results to RabbitMQ
+- [ ] Add support for Prometheus metrics
+- [ ] Document how to use custom input arguments
+- [ ] Save test results to a directory
+- [ ] Allow test results to be viewed on the command line
+- [ ] Generate a MITRE ATT&CK Navigator layer showing available tests
+- [ ] Record demos
+  - [ ] List tests
+  - [ ] Count tests
+  - [ ] Execute tests
+  - [ ] View test results
+  - [ ] Read MITRE ATT&CK Navigator layers
+  - [ ] Generate MITRE ATT&CK Navigator layers
+- [ ] Search for tests by ATT&CK tactic ID or name
+- [ ] Search for tests by ATT&CK technique ID or name
+- [ ] Embed audit monitors
+  - [ ] Event Tracing for Windows (ETW)
+  - [ ] Linux audit framework
+  - [ ] OpenBSM
+  - [ ] Apple Endpoint Security Framework
+- [ ] Correlate test invocations with audit events
+- [ ] Correlate audit events with alerts
+- [ ] Read MITRE ATT&CK STIX 2.1 content from a tarball
+- [ ] Read Atomic Red Team content from a tarball
+- [ ] Generate Atomic Red Team content tarballs
+- [ ] Generate MITRE ATT&CK Navigator layers from Atomic Red Team content
+  - [ ] Available tests
+  - [ ] Test coverage (i.e. successful, failed, skipped, etc.)
+  - [ ] Test progress (i.e. how many tests have been run)
+- [ ] Document how to use bulk test plans
+- [ ] Document how to use multi-test plans
+- [ ] Document how to use MITRE ATT&CK Navigator layers to generate bulk test plans
+- [ ] Document how to generate test plans
+- [ ] Document how to use with Wazuh
+- [ ] Document how to use with LimaCharlie
+- [ ] Document how to use with Sigma rules
+- [ ] Document how to use with Yara rules
+- [ ] Document how to use with CAPA rules
+- [ ] Document how to use with Sysmon

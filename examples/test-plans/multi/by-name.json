@@ -1,0 +1,51 @@
+{
+  "atomics_dir": "~/src/atomic-red-team/atomics",
+  "input_arguments": {
+    "procdump_exe": "PathToAtomicsFolder\\T1003.001\\bin\\procdump.exe",
+    "mimikatz_exe": "PathToAtomicsFolder\\T1003.001\\bin\\x64\\mimikatz.exe"
+  },
+  "attack_technique_ids": [
+    "T1003.001"
+  ],
+  "platforms": [
+    "windows"
+  ],
+  "tests": [
+    {
+      "name": "Dump LSASS.exe Memory using ProcDump",
+      "input_arguments": {
+        "output_file": "C:\\Windows\\Temp\\lsass_dump.dmp"
+      }
+    },
+    {
+      "name": "Dump LSASS.exe Memory using comsvcs.dll"
+    },
+    {
+      "name": "Dump LSASS.exe Memory using direct system calls and API unhooking"
+    },
+    {
+      "name": "Dump LSASS.exe Memory using NanoDump"
+    },
+    {
+      "name": "Offline Credential Theft With Mimikatz"
+    },
+    {
+      "name": "LSASS read with pypykatz"
+    },
+    {
+      "name": "Dump LSASS.exe Memory using Out-Minidump.ps1"
+    },
+    {
+      "name": "Create Mini Dump of LSASS.exe using ProcDump"
+    },
+    {
+      "name": "Powershell Mimikatz"
+    },
+    {
+      "name": "Dump LSASS with createdump.exe from .Net v5"
+    },
+    {
+      "name": "Dump LSASS.exe using imported Microsoft DLLs"
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "atomics_dir": "~/src/atomic-red-team/atomics",
+  "input_arguments": {
+    "procdump_exe": "PathToAtomicsFolder\\T1003.001\\bin\\procdump.exe",
+    "mimikatz_exe": "PathToAtomicsFolder\\T1003.001\\bin\\x64\\mimikatz.exe"
+  },
+  "attack_technique_ids": [
+    "T1003.001"
+  ],
+  "platforms": [
+    "windows"
+  ],
+  "tests": [
+    {
+      "id": "0be2230c-9ab3-4ac2-8826-3199b9a0ebf8",
+      "input_arguments": {
+        "procdump_exe": "PathToAtomicsFolder\\T1003.001\\bin\\procdump-modified.exe",
+        "output_file": "C:\\Windows\\Temp\\lsass_dump.dmp"
+      }
+    },
+    {
+      "id": "2536dee2-12fb-459a-8c37-971844fa73be"
+    },
+    {
+      "id": "7ae7102c-a099-45c8-b985-4c7a2d05790d"
+    },
+    {
+      "id": "dddd4aca-bbed-46f0-984d-e4c5971c51ea"
+    },
+    {
+      "id": "453acf13-1dbd-47d7-b28a-172ce9228023"
+    },
+    {
+      "id": "c37bc535-5c62-4195-9cc3-0517673171d8"
+    },
+    {
+      "id": "6502c8f0-b775-4dbd-9193-1298f56b6781"
+    },
+    {
+      "id": "7cede33f-0acd-44ef-9774-15511300b24b"
+    },
+    {
+      "id": "66fb0bc1-3c3f-47e9-a298-550ecfefacbc"
+    },
+    {
+      "id": "9d0072c8-7cca-45c4-bd14-f852cfa35cf0"
+    },
+    {
+      "id": "86fc3f40-237f-4701-b155-81c01c48d697"
+    }
+  ]
+}
