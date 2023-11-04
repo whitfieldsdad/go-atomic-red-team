@@ -17,7 +17,7 @@ type Process struct {
 	Executable  *File      `json:"executable"`
 	CommandLine string     `json:"command"`
 	Argv        []string   `json:"argv"`
-	ExitCode    int        `json:"exit_code"`
+	ExitCode    *int       `json:"exit_code,omitempty"`
 	Stdout      string     `json:"stdout,omitempty"`
 	Stderr      string     `json:"stderr,omitempty"`
 }
@@ -45,6 +45,29 @@ func GetProcess(pid int) (*Process, error) {
 		CommandLine: strings.Join(info.Args, " "),
 		Argv:        info.Args,
 	}, nil
+}
+
+func GetProcessAncestors(pid int) ([]Process, error) {
+	var processes []Process
+	process, err := GetProcess(pid)
+	if err != nil {
+		return nil, err
+	}
+	processes = append(processes, *process)
+
+	pid = process.PPID
+	for {
+		process, err := GetProcess(pid)
+		if err != nil {
+			break
+		}
+		processes = append(processes, *process)
+		if process.PPID == 0 {
+			break
+		}
+		pid = process.PPID
+	}
+	return processes, nil
 }
 
 // IsElevated checks to see if the current process is either running with elevated privileges, or was started by an administrative user.

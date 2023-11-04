@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -151,8 +152,9 @@ func getAtomicsDir(flags *pflag.FlagSet) string {
 }
 
 func getTestOptions(flags *pflag.FlagSet) *atomic_red_team.TestOptions {
-	atomicsDir, _ := flags.GetString("atomics-dir")
-	return atomic_red_team.NewTestOptions(atomicsDir)
+	opts := atomic_red_team.NewTestOptions()
+	opts.CommandOptions.IncludeParentProcesses, _ = flags.GetBool("include-parent-processes")
+	return opts
 }
 
 func getCommandLineFilter(flags *pflag.FlagSet) *atomic_red_team.TestFilter {
@@ -163,7 +165,6 @@ func getCommandLineFilter(flags *pflag.FlagSet) *atomic_red_team.TestFilter {
 	f.AttackTechniqueIds, _ = flags.GetStringSlice("attack-technique-id")
 	f.ExecutorTypes, _ = flags.GetStringSlice("executor-type")
 	f.ElevationRequired, _ = getNullableBool("elevation-required", flags)
-
 	f.Platforms, _ = flags.GetStringSlice("platform")
 	matchPlatform, _ := flags.GetBool("match-platform")
 	if len(f.Platforms) == 0 && matchPlatform {
@@ -247,16 +248,26 @@ func printTestResultPlain(result atomic_red_team.TestResult) {
 		fmt.Printf("%s\n", strings.TrimRight(command.Command.Command, "\n"))
 	}
 	fmt.Println()
-	fmt.Printf("Executables:\n\n")
-	var executablePaths []string
+	fmt.Printf("Processes:\n\n")
 	for _, command := range result.ExecutedCommands {
 		for _, process := range command.Processes {
-			if process.Executable != nil && process.Executable.Path != "" {
-				executablePaths = append(executablePaths, process.Executable.Path)
+			fmt.Printf("- %d,%d\n", process.PID, process.PPID)
+		}
+	}
+	fmt.Println()
+	fmt.Printf("Executables:\n\n")
+	var paths []string
+	for _, command := range result.ExecutedCommands {
+		for _, process := range command.Processes {
+			if process.Executable != nil {
+				path := process.Executable.Path
+				if path != "" && !slices.Contains(paths, path) {
+					paths = append(paths, path)
+				}
 			}
 		}
 	}
-	for _, path := range executablePaths {
+	for _, path := range paths {
 		fmt.Printf("- %s\n", path)
 	}
 }
@@ -293,4 +304,7 @@ func init() {
 	listDependenciesCmd.Flags().AddFlagSet(&flagset)
 	countDependenciesCmd.Flags().AddFlagSet(&flagset)
 	checkDependenciesCmd.Flags().AddFlagSet(&flagset)
+
+	// Add some flags specific to executing tests.
+	executeTestsCmd.Flags().BoolP("include-parent-processes", "", atomic_red_team.IncludeParentProcesses, "Include parent processes")
 }

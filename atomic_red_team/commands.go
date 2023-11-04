@@ -25,8 +25,16 @@ func NewCommand(command, commandType string) (*Command, error) {
 	}, nil
 }
 
-func (command Command) Execute(ctx context.Context) (*ExecutedCommand, error) {
-	return executeCommand(context.Background(), command.Command, command.CommandType)
+func (command Command) Execute(ctx context.Context, opts *CommandOptions) (*ExecutedCommand, error) {
+	return ExecuteCommand(ctx, command.Command, command.CommandType, opts)
+}
+
+type CommandOptions struct {
+	IncludeParentProcesses bool `json:"include_parent_processes"`
+}
+
+func NewCommandOptions() *CommandOptions {
+	return &CommandOptions{}
 }
 
 type ExecutedCommand struct {
@@ -36,7 +44,38 @@ type ExecutedCommand struct {
 	Processes []Process `json:"processes"`
 }
 
-func executeCommand(ctx context.Context, command, commandType string) (*ExecutedCommand, error) {
+func ExecuteCommand(ctx context.Context, command, commandType string, opts *CommandOptions) (*ExecutedCommand, error) {
+	now := time.Now()
+	executedCommand := &ExecutedCommand{
+		Id:   NewUUID4(),
+		Time: now,
+		Command: &Command{
+			Command:     command,
+			CommandType: commandType,
+		},
+	}
+	if opts == nil {
+		opts = NewCommandOptions()
+	}
+	subprocess, err := executeCommand(ctx, command, commandType)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to execute command")
+	}
+
+	var processes []Process
+	if opts.IncludeParentProcesses {
+		ancestors, err := GetProcessAncestors(subprocess.PID)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get process ancestors")
+		}
+		processes = append(processes, ancestors...)
+	}
+	processes = append(processes, *subprocess)
+	executedCommand.Processes = processes
+	return executedCommand, nil
+}
+
+func executeCommand(ctx context.Context, command, commandType string) (*Process, error) {
 	var err error
 	pid := os.Getpid()
 	process, err := GetProcess(pid)
@@ -51,36 +90,15 @@ func executeCommand(ctx context.Context, command, commandType string) (*Executed
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to prepare command")
 	}
-	now := time.Now()
 	cmd, err := executeArgv(ctx, argv)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to execute command")
 	}
-	subprocess := &Process{
-		Id:          NewUUID4(),
-		Time:        time.Now(),
-		StartTime:   &now,
-		User:        process.User,
-		PID:         cmd.Process.Pid,
-		PPID:        pid,
-		Executable:  &File{Path: cmd.Path},
-		CommandLine: strings.Join(argv, " "),
-		Argv:        argv,
-		ExitCode:    cmd.ProcessState.ExitCode(),
-		Stdout:      cmd.Stdout.(*bytes.Buffer).String(),
-		Stderr:      cmd.Stderr.(*bytes.Buffer).String(),
-	}
-	processes := []Process{*process, *subprocess}
-	result := &ExecutedCommand{
-		Id:   NewUUID4(),
-		Time: time.Now(),
-		Command: &Command{
-			Command:     command,
-			CommandType: commandType,
-		},
-		Processes: processes,
-	}
-	return result, nil
+	exitCode := cmd.ProcessState.ExitCode()
+	process.ExitCode = &exitCode
+	process.Stdout = cmd.Stdout.(*bytes.Buffer).String()
+	process.Stderr = cmd.Stderr.(*bytes.Buffer).String()
+	return process, nil
 }
 
 func executeArgv(ctx context.Context, argv []string) (*exec.Cmd, error) {

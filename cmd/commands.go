@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/whitfieldsdad/go-atomic-red-team/atomic_red_team"
 )
 
@@ -31,7 +32,8 @@ var executeCommandCmd = &cobra.Command{
 		if err != nil {
 			log.Fatal(err)
 		}
-		result, err := c.Execute(ctx)
+		opts := getCommandOptions(cmd.Flags())
+		result, err := c.Execute(ctx, opts)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -39,9 +41,18 @@ var executeCommandCmd = &cobra.Command{
 	},
 }
 
+func getCommandOptions(flags *pflag.FlagSet) *atomic_red_team.CommandOptions {
+	opts := &atomic_red_team.CommandOptions{}
+	if flags.Changed("include-parent-processes") {
+		opts.IncludeParentProcesses, _ = flags.GetBool("include-parent-processes")
+	}
+	return opts
+}
+
 func init() {
 	rootCmd.AddCommand(commandsCmd)
 	commandsCmd.AddCommand(executeCommandCmd)
 
 	executeCommandCmd.Flags().StringP("command-type", "t", atomic_red_team.DefaultCommandType, "Command type")
+	executeCommandCmd.Flags().BoolP("include-parent-processes", "o", atomic_red_team.IncludeParentProcesses, "Include parent processes")
 }

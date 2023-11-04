@@ -57,7 +57,12 @@ func (t Test) MatchesPlatform(platform string) bool {
 	return slices.Contains(t.SupportedPlatforms, platform)
 }
 
+// TODO: dependency resolution
 func (t Test) Run(ctx context.Context, atomicsDir string, opts *TestOptions) (*TestResult, error) {
+	if opts == nil {
+		opts = NewTestOptions()
+	}
+	now := time.Now()
 	err := t.checkRequirements()
 	if err != nil {
 		return nil, err
@@ -65,13 +70,8 @@ func (t Test) Run(ctx context.Context, atomicsDir string, opts *TestOptions) (*T
 
 	var executedCommands []ExecutedCommand
 
-	// Perform dependency resolution (TODO).
-	if len(t.Dependencies) > 0 {
-		log.Warnf("Test %s has %d dependencies, but dependency resolution is not supported yet", t.Name, len(t.Dependencies))
-	}
-
 	// Execute the primary test command.
-	executedCommand, err := t.executeCommand(ctx, t.Executor.Command, t.Executor.Name, atomicsDir)
+	executedCommand, err := t.executeCommand(ctx, t.Executor.Command, t.Executor.Name, atomicsDir, opts.CommandOptions)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to execute command")
 	}
@@ -80,7 +80,7 @@ func (t Test) Run(ctx context.Context, atomicsDir string, opts *TestOptions) (*T
 	// Execute the cleanup command if one is specified.
 	cleanupCommand := t.Executor.CleanupCommand
 	if cleanupCommand != "" {
-		executedCommand, err := t.executeCommand(ctx, cleanupCommand, t.Executor.Name, atomicsDir)
+		executedCommand, err := t.executeCommand(ctx, cleanupCommand, t.Executor.Name, atomicsDir, opts.CommandOptions)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to execute cleanup command")
 		}
@@ -88,7 +88,7 @@ func (t Test) Run(ctx context.Context, atomicsDir string, opts *TestOptions) (*T
 	}
 	testResult := &TestResult{
 		Id:               NewUUID4(),
-		Time:             time.Now(),
+		Time:             now,
 		Test:             t,
 		ExecutedCommands: executedCommands,
 	}
@@ -115,7 +115,7 @@ func (t Test) checkRequirements() error {
 	return nil
 }
 
-func (t Test) executeCommand(ctx context.Context, command, commandType, atomicsDir string) (*ExecutedCommand, error) {
+func (t Test) executeCommand(ctx context.Context, command, commandType, atomicsDir string, opts *CommandOptions) (*ExecutedCommand, error) {
 	kwargs := map[string]string{}
 	for k, v := range t.InputArguments {
 		kwargs[k] = v.DefaultValue
@@ -129,7 +129,7 @@ func (t Test) executeCommand(ctx context.Context, command, commandType, atomicsD
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create command")
 	}
-	return c.Execute(ctx)
+	return c.Execute(ctx, opts)
 }
 
 type ArgSpec struct {
