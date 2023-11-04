@@ -4,15 +4,11 @@
 package atomic_red_team
 
 import (
-	"github.com/charmbracelet/log"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
 )
 
-// currentProcessIsElevated checks to see if the current process is either running with elevated privileges, or was started by an administrative user.
-func currentProcessIsElevated() (bool, error) {
-	log.Info("Checking if process is running with elevated privileges and/or was created by an administrative user")
-
+func isElevated() (bool, error) {
 	var sid *windows.SID
 	err := windows.AllocateAndInitializeSid(
 		&windows.SECURITY_NT_AUTHORITY,

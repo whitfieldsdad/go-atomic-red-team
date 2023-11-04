@@ -6,7 +6,6 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"github.com/whitfieldsdad/go-atomic-red-team/atomic_red_team"
 )
 
@@ -25,20 +24,18 @@ var executeCommandCmd = &cobra.Command{
 		command := strings.Join(args, " ")
 		commandType, err := cmd.Flags().GetString("command-type")
 		if err != nil {
-			log.Fatalf("Failed to get command type: %s\n", err)
+			log.Fatal(err)
 		}
-
-		// Execute the command.
 		ctx := context.Background()
 		c, err := atomic_red_team.NewCommand(command, commandType)
 		if err != nil {
-			log.Fatalf("Failed to prepare command: %s\n", err)
+			log.Fatal(err)
 		}
-		p, err := c.Execute(ctx)
+		result, err := c.Execute(ctx)
 		if err != nil {
-			log.Fatalf("Failed to execute command: %s\n", err)
+			log.Fatal(err)
 		}
-		PrintJson(p)
+		PrintJson(result)
 	},
 }
 
@@ -46,7 +43,5 @@ func init() {
 	rootCmd.AddCommand(commandsCmd)
 	commandsCmd.AddCommand(executeCommandCmd)
 
-	flags := pflag.FlagSet{}
-	flags.String("command-type", atomic_red_team.DefaultCommandType, "Command type")
-	executeCommandCmd.Flags().AddFlagSet(&flags)
+	executeCommandCmd.Flags().StringP("command-type", "t", atomic_red_team.DefaultCommandType, "Command type")
 }

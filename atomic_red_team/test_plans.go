@@ -11,49 +11,45 @@ import (
 	"github.com/pkg/errors"
 )
 
-type TestPlan interface {
+type TestPlanInterface interface {
 	GetTestFilters() []TestFilter
 	GetTestOptions() TestOptions
 }
 
 type BulkTestPlan struct {
-	AtomicsDir     string                 `json:"atomics_dir,omitempty"`
 	Tests          []TestFilter           `json:"tests,omitempty"`
 	InputArguments map[string]interface{} `json:"input_arguments,omitempty"`
 }
 
-func (p BulkTestPlan) GetTestFilters() []TestFilter {
+func (plan BulkTestPlan) GetTestFilters() []TestFilter {
 	var filters []TestFilter
-	filters = append(filters, p.Tests...)
-	return removeEmptyTestFilters(filters)
+	filters = append(filters, plan.Tests...)
+	return filters
 }
 
-func (p BulkTestPlan) GetTestOptions() TestOptions {
+func (plan BulkTestPlan) GetTestOptions() TestOptions {
 	return TestOptions{
-		AtomicsDir:     p.AtomicsDir,
-		InputArguments: p.InputArguments,
+		InputArguments: plan.InputArguments,
 	}
 }
 
 // MultiTestPlan provides a way to run multiple tests with different input arguments and an optional set of global arguments.
-type MultiTestPlan struct {
-	AtomicsDir     string                 `json:"atomics_dir,omitempty"`
+type TestPlan struct {
 	Tests          []testReference        `json:"tests,omitempty"`
 	InputArguments map[string]interface{} `json:"input_arguments,omitempty"`
 }
 
-func (p MultiTestPlan) GetTestFilters() []TestFilter {
+func (plan TestPlan) GetTestFilters() []TestFilter {
 	var filters []TestFilter
-	for _, test := range p.Tests {
+	for _, test := range plan.Tests {
 		filters = append(filters, test.GetTestFilter())
 	}
-	return removeEmptyTestFilters(filters)
+	return filters
 }
 
-func (p MultiTestPlan) GetTestOptions() TestOptions {
+func (plan TestPlan) GetTestOptions() TestOptions {
 	return TestOptions{
-		AtomicsDir:     p.AtomicsDir,
-		InputArguments: p.InputArguments,
+		InputArguments: plan.InputArguments,
 	}
 }
 
@@ -88,7 +84,7 @@ func (t testReference) GetTestFilter() TestFilter {
 }
 
 // ReadTestPlan reads a test plan from a file.
-func ReadTestPlan(path string) (TestPlan, error) {
+func ReadTestPlan(path string) (TestPlanInterface, error) {
 	log.Infof("Reading test plan: %s", path)
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -106,7 +102,7 @@ func ReadTestPlan(path string) (TestPlan, error) {
 	return plan, nil
 }
 
-func ParseTestPlan(data map[string]interface{}) (TestPlan, error) {
+func ParseTestPlan(data map[string]interface{}) (TestPlanInterface, error) {
 	if isAttackNavigatorLayer(data) {
 		layer, err := ParseAttackNavigatorLayer(data)
 		if err != nil {
@@ -117,8 +113,21 @@ func ParseTestPlan(data map[string]interface{}) (TestPlan, error) {
 	return parseTestPlan(data)
 }
 
-func parseTestPlan(data map[string]interface{}) (TestPlan, error) {
-	var plan TestPlan
+func isAttackNavigatorLayer(data map[string]interface{}) bool {
+	_, ok := data["techniques"]
+	if ok {
+		for _, technique := range data["techniques"].([]interface{}) {
+			m, _ := technique.(map[string]interface{})
+			if _, ok := m["techniqueID"]; !ok {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func parseTestPlan(data map[string]interface{}) (TestPlanInterface, error) {
+	var plan TestPlanInterface
 	var err error
 
 	// Parse the test plan as either a multi-test plan or as a bulk test plan.

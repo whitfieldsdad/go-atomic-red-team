@@ -5,6 +5,6 @@ package atomic_red_team
 
 import "os"
 
-func currentProcessIsElevated() (bool, error) {
+func isElevated() (bool, error) {
 	return os.Geteuid() == 0, nil
 }

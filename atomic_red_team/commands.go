@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -13,58 +14,81 @@ import (
 )
 
 type Command struct {
-	Command     string `json:"command,omitempty"`
-	CommandType string `json:"command_type,omitempty"`
+	Command     string `json:"command"`
+	CommandType string `json:"command_type"`
 }
 
 func NewCommand(command, commandType string) (*Command, error) {
-	commandType, err := parseCommandType(commandType)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse command type")
-	}
 	return &Command{
 		Command:     command,
 		CommandType: commandType,
 	}, nil
 }
 
-func (c *Command) Execute(ctx context.Context) (*ExecutedCommand, error) {
-	return ExecuteCommand(ctx, c.Command, c.CommandType)
+func (command Command) Execute(ctx context.Context) (*ExecutedCommand, error) {
+	return executeCommand(context.Background(), command.Command, command.CommandType)
 }
 
-func ExecuteCommand(ctx context.Context, command, commandType string) (*ExecutedCommand, error) {
-	argv, err := prepareCommand(command, commandType)
+type ExecutedCommand struct {
+	Id        string    `json:"id"`
+	Time      time.Time `json:"time"`
+	Command   *Command  `json:"command"`
+	Processes []Process `json:"processes"`
+}
+
+func executeCommand(ctx context.Context, command, commandType string) (*ExecutedCommand, error) {
+	var err error
+	pid := os.Getpid()
+	process, err := GetProcess(pid)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to wrap command")
+		return nil, errors.Wrap(err, "failed to get process")
 	}
-	return ExecuteCommandArgs(ctx, argv)
-}
-
-func ExecuteCommandArgs(ctx context.Context, argv []string) (*ExecutedCommand, error) {
-	startTime := time.Now()
-	process, err := executeCommand(ctx, argv)
-	var errorString string
+	process.User, err = GetUser()
 	if err != nil {
-		errorString = err.Error()
+		return nil, errors.Wrap(err, "failed to get user")
 	}
-	if process != nil {
-		startTime = process.Time
+	argv, err := prepareCommand(command, DefaultCommandType)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to prepare command")
 	}
-	executedCommand := &ExecutedCommand{
-		Id:      NewUUID4(),
-		Time:    startTime,
-		Command: strings.Join(argv, " "),
-		Process: process,
-		Error:   errorString,
+	now := time.Now()
+	cmd, err := executeArgv(ctx, argv)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to execute command")
 	}
-	return executedCommand, nil
+	subprocess := &Process{
+		Id:          NewUUID4(),
+		Time:        time.Now(),
+		StartTime:   &now,
+		User:        process.User,
+		PID:         cmd.Process.Pid,
+		PPID:        pid,
+		Executable:  &File{Path: cmd.Path},
+		CommandLine: strings.Join(argv, " "),
+		Argv:        argv,
+		ExitCode:    cmd.ProcessState.ExitCode(),
+		Stdout:      cmd.Stdout.(*bytes.Buffer).String(),
+		Stderr:      cmd.Stderr.(*bytes.Buffer).String(),
+	}
+	processes := []Process{*process, *subprocess}
+	result := &ExecutedCommand{
+		Id:   NewUUID4(),
+		Time: time.Now(),
+		Command: &Command{
+			Command:     command,
+			CommandType: commandType,
+		},
+		Processes: processes,
+	}
+	return result, nil
 }
 
-func executeCommand(ctx context.Context, argv []string) (*Process, error) {
-	commandLine := strings.Join(argv, " ")
-	log.Infof("Executing command: %s", commandLine)
-
-	cmd := exec.Command(argv[0], argv[1:]...)
+func executeArgv(ctx context.Context, argv []string) (*exec.Cmd, error) {
+	path, err := exec.LookPath(argv[0])
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to find command")
+	}
+	cmd := exec.Command(path, argv[1:]...)
 	cmd.SysProcAttr = getSysProcAttrs()
 
 	stdout := new(bytes.Buffer)
@@ -72,45 +96,78 @@ func executeCommand(ctx context.Context, argv []string) (*Process, error) {
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 
-	if err := cmd.Start(); err != nil {
+	err = cmd.Start()
+	if err != nil {
 		return nil, errors.Wrap(err, "failed to start command")
 	}
-
-	// Collect basic information about the subprocess.
 	pid := cmd.Process.Pid
 	ppid := os.Getpid()
+	log.Debugf("Executing command: %s %s (PID: %d, PPID: %d)", path, strings.Join(argv, " "), pid, ppid)
 
-	log.Infof("Started process (PID: %d, PPID: %d)", pid, ppid)
-
-	process, err := GetProcess(pid)
-	if err != nil {
-		process = &Process{
-			Time:        time.Now(),
-			PID:         pid,
-			PPID:        ppid,
-			User:        CurrentUser,
-			Argv:        argv,
-			CommandLine: commandLine,
-		}
-	}
-
-	// Wait for the process to exit.
-	log.Infof("Waiting for process to exit (PID: %d, PPID: %d)", pid, ppid)
+	log.Debugf("Waiting for command to exit (PID: %d, PPID: %d)", pid, ppid)
 	err = cmd.Wait()
 	if err != nil {
-		log.Warnf("Failed to wait for command to exit (PID: %d, PPID: %d): %s", pid, ppid, err)
 		return nil, errors.Wrap(err, "failed to wait for command to exit")
 	}
-	exitCode := cmd.ProcessState.ExitCode()
-	log.Infof("Process exited (PID: %d, PPID: %d, exit code: %d)", pid, ppid, exitCode)
+	log.Debugf("Command exited (PID: %d, PPID: %d, exit code: %d)", pid, ppid, cmd.ProcessState.ExitCode())
+	return cmd, nil
+}
 
-	// Update the process with the exit code and duration.
-	now := time.Now()
-	process.ExitCode = &exitCode
-	process.ExitTime = &now
+var (
+	WindowsPowerShell = "powershell"
+	PowerShellCore    = "pwsh"
+	PowerShell        = getPowerShellCommandType()
+	CommandPrompt     = "command_prompt"
+	Sh                = "sh"
+	Bash              = "bash"
+)
 
-	// Update the process with the stdout and stderr.
-	process.Stdout = stdout.String()
-	process.Stderr = stderr.String()
-	return process, nil
+var (
+	commandTypes = []string{PowerShell, CommandPrompt, Sh, Bash}
+	commandShims = map[string][]string{
+		WindowsPowerShell: {"powershell", "-ExecutionPolicy", "Bypass", "-Command"},
+		PowerShellCore:    {"pwsh", "-Command"},
+		CommandPrompt:     {"cmd", "/c"},
+		Sh:                {"sh", "-c"},
+		Bash:              {"bash", "-c"},
+	}
+)
+
+var (
+	DefaultCommandType = getDefaultCommandType()
+)
+
+func getDefaultCommandType() string {
+	if runtime.GOOS == "windows" {
+		return CommandPrompt
+	}
+	return Bash
+}
+
+func getPowerShellCommandType() string {
+	if runtime.GOOS == "windows" {
+		return WindowsPowerShell
+	}
+	return PowerShellCore
+}
+
+func prepareCommand(command, commandType string) ([]string, error) {
+	commandType, err := parseCommandType(commandType)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse command type")
+	}
+	shim, ok := commandShims[commandType]
+	if !ok {
+		return nil, errors.Errorf("invalid command type: %s", commandType)
+	}
+	return append(shim, command), nil
+}
+
+func parseCommandType(commandType string) (string, error) {
+	for _, validCommandType := range commandTypes {
+		if commandType == validCommandType {
+			return commandType, nil
+		}
+	}
+	return "", errors.Errorf("invalid command type: %s", commandType)
 }

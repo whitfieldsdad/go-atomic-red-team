@@ -2,6 +2,7 @@ package atomic_red_team
 
 import (
 	"runtime"
+	"slices"
 )
 
 type TestFilter struct {
@@ -24,30 +25,7 @@ func (f *TestFilter) SetDefaultPlatform() error {
 	return nil
 }
 
-func (f TestFilter) Empty() bool {
-	if f.ElevationRequired != nil {
-		return false
-	}
-	slices := [][]string{
-		f.Ids,
-		f.Names,
-		f.Descriptions,
-		f.AttackTechniqueIds,
-		f.Platforms,
-		f.ExecutorTypes,
-	}
-	for _, slice := range slices {
-		if len(slice) > 0 {
-			return false
-		}
-	}
-	return true
-}
-
 func (f TestFilter) Matches(t Test) bool {
-	if f.Empty() {
-		return true
-	}
 	cmps := []struct {
 		Value          []string
 		RequiredValues []string
@@ -70,12 +48,30 @@ func (f TestFilter) Matches(t Test) bool {
 	return true
 }
 
-func removeEmptyTestFilters(filters []TestFilter) []TestFilter {
-	var filtered []TestFilter
-	for _, filter := range filters {
-		if !filter.Empty() {
-			filtered = append(filtered, filter)
+func getAttackTechniqueIdsFromTestFilters(testFilters []TestFilter) []string {
+	var attackTechniqueIds []string
+	for _, testFilter := range testFilters {
+		for _, attackTechniqueId := range testFilter.AttackTechniqueIds {
+			if !slices.Contains(attackTechniqueIds, attackTechniqueId) {
+				attackTechniqueIds = append(attackTechniqueIds, attackTechniqueId)
+			}
 		}
 	}
-	return filtered
+	return attackTechniqueIds
+}
+
+func mergeTestFilters(filters ...TestFilter) TestFilter {
+	var combined TestFilter
+	for _, filter := range filters {
+		combined.Ids = append(combined.Ids, filter.Ids...)
+		combined.Names = append(combined.Names, filter.Names...)
+		combined.Descriptions = append(combined.Descriptions, filter.Descriptions...)
+		combined.Platforms = append(combined.Platforms, filter.Platforms...)
+		combined.ExecutorTypes = append(combined.ExecutorTypes, filter.ExecutorTypes...)
+		if filter.ElevationRequired != nil {
+			combined.ElevationRequired = filter.ElevationRequired
+		}
+		combined.AttackTechniqueIds = append(combined.AttackTechniqueIds, filter.AttackTechniqueIds...)
+	}
+	return combined
 }

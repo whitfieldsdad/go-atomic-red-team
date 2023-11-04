@@ -1,134 +1,115 @@
 package atomic_red_team
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
+	"strings"
 
-	"github.com/charmbracelet/log"
-	"github.com/gobwas/glob"
 	"github.com/pkg/errors"
 	"gopkg.in/yaml.v3"
 )
 
-type ClientOptions struct {
-	AtomicsDir string `json:"atomic_red_team_dir"`
-}
-
-type Client struct {
-	Options ClientOptions `json:"options"`
-}
-
-func NewClient(atomicsDir string) (*Client, error) {
-	if atomicsDir == "" {
-		return nil, errors.New("path to atomic-red-team/atomics directory is required")
-	}
-	return &Client{
-		Options: ClientOptions{
-			AtomicsDir: atomicsDir,
-		},
-	}, nil
-}
-
-func getAttackTechniqueIdsFromTestFilters(testFilters []TestFilter) []string {
-	var attackTechniqueIds []string
-	for _, testFilter := range testFilters {
-		for _, attackTechniqueId := range testFilter.AttackTechniqueIds {
-			if !slices.Contains(attackTechniqueIds, attackTechniqueId) {
-				attackTechniqueIds = append(attackTechniqueIds, attackTechniqueId)
-			}
-		}
-	}
-	return attackTechniqueIds
-}
-
-func (c Client) ListTests(testFilters []TestFilter) ([]Test, error) {
-	attackTechniqueIds := getAttackTechniqueIdsFromTestFilters(testFilters)
-
-	var tests []Test
-	testPaths, err := c.ListTestPaths(attackTechniqueIds)
+func GetTests(directory string, filter *TestFilter) ([]Test, error) {
+	paths, err := findTests(directory, nil)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to find tests")
 	}
-	for _, testPath := range testPaths {
-		testsFromFile, err := c.readTestsFromFile(testPath, testFilters)
+	var tests []Test
+	for _, path := range paths {
+		testsFromFile, err := ReadTestsFromFile(path, filter)
 		if err != nil {
-			log.Warnf("Failed to read tests from file %s - %s", testPath, err)
-			continue
+			return nil, errors.Wrapf(err, "failed to read tests from file %s", path)
 		}
-		log.Debugf("Read %d tests from %s", len(testsFromFile), testPath)
 		tests = append(tests, testsFromFile...)
 	}
 	return tests, nil
 }
 
-func (c Client) ListTestPaths(attackTechniqueIds []string) ([]string, error) {
-	var testPaths []string
-	filepath.Walk(c.Options.AtomicsDir, func(path string, info os.FileInfo, err error) error {
+func findTests(directory string, attackTechniqueIds []string) ([]string, error) {
+	var paths []string
+	filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
 		if info.IsDir() {
 			return nil
 		}
-		if !filenameContainsAttackTechniqueId(info.Name(), attackTechniqueIds) {
+		if !strings.HasSuffix(path, ".yaml") {
 			return nil
 		}
-		testPaths = append(testPaths, path)
+		if len(attackTechniqueIds) > 0 && !containsAny(path, attackTechniqueIds) {
+			return nil
+		}
+		paths = append(paths, path)
 		return nil
 	})
-	return testPaths, nil
+	return paths, nil
 }
 
-func filenameContainsAttackTechniqueId(filename string, attackTechniqueIds []string) bool {
-	if len(attackTechniqueIds) == 0 {
-		g := glob.MustCompile("*T*.yaml")
-		return g.Match(filename)
+func ReadTestsFromFile(path string, filter *TestFilter) ([]Test, error) {
+	if strings.HasSuffix(path, ".yaml") {
+		return readTestsFromYamlFile(path, filter)
 	}
-	for _, attackTechniqueId := range attackTechniqueIds {
-		g := glob.MustCompile(fmt.Sprintf("*%s*.yaml", attackTechniqueId))
-		if g.Match(filename) {
-			return true
-		}
-	}
-	return false
+	return readTestsFromYamlFile(path, filter)
 }
 
-func (c Client) readBundleFromFile(path string, testFilters []TestFilter) (*TestBundle, error) {
+func readTestsFromYamlFile(path string, filter *TestFilter) ([]Test, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to read file")
 	}
+	tests, err := decodeTests(data)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to decode tests")
+	}
+	tests = removeManualTests(tests)
+	if filter != nil {
+		tests = filterTests(tests, filter)
+	}
+	return tests, nil
+}
+
+func decodeTests(data []byte) ([]Test, error) {
 	var bundle TestBundle
-	err = yaml.Unmarshal(data, &bundle)
+	err := yaml.Unmarshal(data, &bundle)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to unmarshal yaml")
 	}
-	// Set the attack technique ID and name for each test.
-	for i := 0; i < len(bundle.AtomicTests); i++ {
-		test := &bundle.AtomicTests[i]
-		test.AttackTechniqueId = bundle.GetAttackTechniqueId()
-		test.AttackTechniqueName = bundle.GetAttackTechniqueName()
-	}
+	attackTechniqueId := bundle.GetAttackTechniqueId()
+	attackTechniqueName := bundle.GetAttackTechniqueName()
 
-	var tests []Test
-	for _, test := range bundle.AtomicTests {
-		if test.Executor.Name != "manual" && test.MatchesAnyFilter(testFilters) {
+	tests := bundle.AtomicTests
+	for i, test := range tests {
+		test.AttackTechniqueId = attackTechniqueId
+		test.AttackTechniqueName = attackTechniqueName
 
-			// Set the executor for each dependency.
-			for i := 0; i < len(test.Dependencies); i++ {
-				dependency := &test.Dependencies[i]
-				dependency.executorType = test.Executor.Name
-			}
-			tests = append(tests, test)
+		for j, dependency := range test.Dependencies {
+			dependency.executorName = test.DependencyExecutorName
+			test.Dependencies[j] = dependency
 		}
+		tests[i] = test
 	}
-	bundle.AtomicTests = tests
-	return &bundle, nil
+	return tests, nil
 }
 
-func (c Client) readTestsFromFile(path string, testFilters []TestFilter) ([]Test, error) {
-	bundle, err := c.readBundleFromFile(path, testFilters)
-	if err != nil {
-		return nil, err
+func removeManualTests(tests []Test) []Test {
+	var filteredTests []Test
+	for _, test := range tests {
+		if test.IsManual() {
+			continue
+		}
+		filteredTests = append(filteredTests, test)
 	}
-	return bundle.AtomicTests, nil
+	return filteredTests
+}
+
+func filterTests(tests []Test, filter *TestFilter) []Test {
+	if filter == nil {
+		return tests
+	}
+	var filteredTests []Test
+	for _, test := range tests {
+		if filter != nil && !filter.Matches(test) {
+			continue
+		}
+		filteredTests = append(filteredTests, test)
+	}
+	return filteredTests
 }
