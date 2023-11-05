@@ -2,6 +2,7 @@ package atomic_red_team
 
 import (
 	"archive/tar"
+	"compress/gzip"
 	"os"
 	"path/filepath"
 	"strings"
@@ -76,7 +77,36 @@ func getTestsFromTarFile(path string, filter *TestFilter) ([]Test, error) {
 }
 
 func getTestsFromTarballFile(path string, filter *TestFilter) ([]Test, error) {
-	return nil, nil
+	reader, err := os.Open(path)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to open file")
+	}
+	gzReader, err := gzip.NewReader(reader)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to create gzip reader")
+	}
+
+	tfs := tarfs.New(tar.NewReader(gzReader))
+	afs := &afero.Afero{Fs: tfs}
+
+	var tests []Test
+
+	afs.Walk("/", func(path string, info os.FileInfo, err error) error {
+		if StringMatchesPattern(path, "*T*/T*.yaml") {
+			blob, err := afs.ReadFile(path)
+			if err != nil {
+				return errors.Wrap(err, "failed to read file")
+			}
+			testsFromFile, err := decodeTests(blob)
+			if err != nil {
+				log.Warnf("Failed to decode tests from file: %s", err)
+				return nil
+			}
+			tests = append(tests, filterTests(testsFromFile, filter)...)
+		}
+		return nil
+	})
+	return tests, nil
 }
 
 func findTests(directory string, attackTechniqueIds []string) ([]string, error) {
