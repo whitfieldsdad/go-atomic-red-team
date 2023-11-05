@@ -15,31 +15,46 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func GetTests(path string, filter *TestFilter) ([]Test, error) {
+func ReadTests(path string, filter *TestFilter) ([]Test, error) {
 	info, err := os.Stat(path)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to stat path")
 	}
 	if info.IsDir() {
-		return getTestsFromDirectory(path, filter)
+		return readTestsFromDirectory(path, filter)
 	} else if strings.HasSuffix(path, ".tar") {
-		return getTestsFromTarFile(path, filter)
+		return readTestsFromTarFile(path, filter)
 	} else if strings.HasSuffix(path, ".tar.gz") {
-		return getTestsFromTarballFile(path, filter)
+		return readTestsFromTarballFile(path, filter)
 	} else {
 		log.Fatalf("Unsupported file type: %s", path)
 	}
 	return nil, nil
 }
 
-func getTestsFromDirectory(directory string, filter *TestFilter) ([]Test, error) {
-	paths, err := findTests(directory, nil)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to find tests")
+func readTestsFromDirectory(directory string, filter *TestFilter) ([]Test, error) {
+	var attackTechniqueIds []string
+	if filter != nil {
+		attackTechniqueIds = filter.AttackTechniqueIds
 	}
+	var paths []string
+	filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
+		if info.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(path, ".yaml") {
+			return nil
+		}
+		if len(attackTechniqueIds) > 0 && !containsAny(path, attackTechniqueIds) {
+			return nil
+		}
+		paths = append(paths, path)
+		return nil
+	})
+
 	var tests []Test
 	for _, path := range paths {
-		testsFromFile, err := ReadTestsFromFile(path, filter)
+		testsFromFile, err := ReadTests(path, filter)
 		if err != nil {
 			log.Warnf("Failed to read tests from file: %s", err)
 			continue
@@ -49,23 +64,31 @@ func getTestsFromDirectory(directory string, filter *TestFilter) ([]Test, error)
 	return tests, nil
 }
 
-func getTestsFromTarFile(path string, filter *TestFilter) ([]Test, error) {
+func readTestsFromYamlFile(path string, filter *TestFilter) ([]Test, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to read file")
+	}
+	return decodeAndFilterTests(data, filter)
+}
+
+func readTestsFromTarFile(path string, filter *TestFilter) ([]Test, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to open file")
 	}
-	return getTestsFromTarFS(file, false, filter)
+	return readTestsFromTarFS(file, false, filter)
 }
 
-func getTestsFromTarballFile(path string, filter *TestFilter) ([]Test, error) {
+func readTestsFromTarballFile(path string, filter *TestFilter) ([]Test, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to open file")
 	}
-	return getTestsFromTarFS(file, true, filter)
+	return readTestsFromTarFS(file, true, filter)
 }
 
-func getTestsFromTarFS(reader io.Reader, compressed bool, filter *TestFilter) ([]Test, error) {
+func readTestsFromTarFS(reader io.Reader, compressed bool, filter *TestFilter) ([]Test, error) {
 	var err error
 	if compressed {
 		reader, err = gzip.NewReader(reader)
@@ -84,48 +107,19 @@ func getTestsFromTarFS(reader io.Reader, compressed bool, filter *TestFilter) ([
 			if err != nil {
 				return errors.Wrap(err, "failed to read file")
 			}
-			testsFromFile, err := decodeTests(blob)
+			testsFromFile, err := decodeAndFilterTests(blob, filter)
 			if err != nil {
-				log.Warnf("Failed to decode tests from file: %s", err)
+				log.Warnf("Failed to read tests from file: %s", err)
 				return nil
 			}
-			tests = append(tests, filterTests(testsFromFile, filter)...)
+			tests = append(tests, testsFromFile...)
 		}
 		return nil
 	})
 	return tests, nil
 }
 
-func findTests(directory string, attackTechniqueIds []string) ([]string, error) {
-	var paths []string
-	filepath.Walk(directory, func(path string, info os.FileInfo, err error) error {
-		if info.IsDir() {
-			return nil
-		}
-		if !strings.HasSuffix(path, ".yaml") {
-			return nil
-		}
-		if len(attackTechniqueIds) > 0 && !containsAny(path, attackTechniqueIds) {
-			return nil
-		}
-		paths = append(paths, path)
-		return nil
-	})
-	return paths, nil
-}
-
-func ReadTestsFromFile(path string, filter *TestFilter) ([]Test, error) {
-	if strings.HasSuffix(path, ".yaml") {
-		return readTestsFromYamlFile(path, filter)
-	}
-	return readTestsFromYamlFile(path, filter)
-}
-
-func readTestsFromYamlFile(path string, filter *TestFilter) ([]Test, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to read file")
-	}
+func decodeAndFilterTests(data []byte, filter *TestFilter) ([]Test, error) {
 	tests, err := decodeTests(data)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to decode tests")

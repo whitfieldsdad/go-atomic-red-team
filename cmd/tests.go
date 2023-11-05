@@ -167,7 +167,7 @@ var resolveDependenciesCmd = &cobra.Command{
 func listTests(flags *pflag.FlagSet) ([]atomic_red_team.Test, error) {
 	atomicsDir, _ := flags.GetString("atomics-dir")
 	filter := getCommandLineFilter(flags)
-	return atomic_red_team.GetTests(atomicsDir, filter)
+	return atomic_red_team.ReadTests(atomicsDir, filter)
 }
 
 func getAtomicsDir(flags *pflag.FlagSet) string {
