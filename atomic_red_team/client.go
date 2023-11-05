@@ -1,15 +1,36 @@
 package atomic_red_team
 
 import (
+	"archive/tar"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/charmbracelet/log"
 	"github.com/pkg/errors"
+	"github.com/spf13/afero"
+	"github.com/spf13/afero/tarfs"
 	"gopkg.in/yaml.v3"
 )
 
-func GetTests(directory string, filter *TestFilter) ([]Test, error) {
+func GetTests(path string, filter *TestFilter) ([]Test, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to stat path")
+	}
+	if info.IsDir() {
+		return getTestsFromDirectory(path, filter)
+	} else if strings.HasSuffix(path, ".tar") {
+		return getTestsFromTarFile(path, filter)
+	} else if strings.HasSuffix(path, ".tar.gz") {
+		return getTestsFromTarballFile(path, filter)
+	} else {
+		log.Fatalf("Unsupported file type: %s", path)
+	}
+	return nil, nil
+}
+
+func getTestsFromDirectory(directory string, filter *TestFilter) ([]Test, error) {
 	paths, err := findTests(directory, nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to find tests")
@@ -18,11 +39,44 @@ func GetTests(directory string, filter *TestFilter) ([]Test, error) {
 	for _, path := range paths {
 		testsFromFile, err := ReadTestsFromFile(path, filter)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to read tests from file %s", path)
+			log.Warnf("Failed to read tests from file: %s", err)
+			continue
 		}
 		tests = append(tests, testsFromFile...)
 	}
 	return tests, nil
+}
+
+func getTestsFromTarFile(path string, filter *TestFilter) ([]Test, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to open file")
+	}
+	tfs := tarfs.New(tar.NewReader(file))
+	afs := &afero.Afero{Fs: tfs}
+
+	var tests []Test
+
+	afs.Walk("/", func(path string, info os.FileInfo, err error) error {
+		if StringMatchesPattern(path, "*T*/T*.yaml") {
+			blob, err := afs.ReadFile(path)
+			if err != nil {
+				return errors.Wrap(err, "failed to read file")
+			}
+			testsFromFile, err := decodeTests(blob)
+			if err != nil {
+				log.Warnf("Failed to decode tests from file: %s", err)
+				return nil
+			}
+			tests = append(tests, filterTests(testsFromFile, filter)...)
+		}
+		return nil
+	})
+	return tests, nil
+}
+
+func getTestsFromTarballFile(path string, filter *TestFilter) ([]Test, error) {
+	return nil, nil
 }
 
 func findTests(directory string, attackTechniqueIds []string) ([]string, error) {
@@ -59,10 +113,7 @@ func readTestsFromYamlFile(path string, filter *TestFilter) ([]Test, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to decode tests")
 	}
-	tests = removeManualTests(tests)
-	if filter != nil {
-		tests = filterTests(tests, filter)
-	}
+	tests = filterTests(tests, filter)
 	return tests, nil
 }
 
@@ -89,23 +140,12 @@ func decodeTests(data []byte) ([]Test, error) {
 	return tests, nil
 }
 
-func removeManualTests(tests []Test) []Test {
+func filterTests(tests []Test, filter *TestFilter) []Test {
 	var filteredTests []Test
 	for _, test := range tests {
 		if test.IsManual() {
 			continue
 		}
-		filteredTests = append(filteredTests, test)
-	}
-	return filteredTests
-}
-
-func filterTests(tests []Test, filter *TestFilter) []Test {
-	if filter == nil {
-		return tests
-	}
-	var filteredTests []Test
-	for _, test := range tests {
 		if filter != nil && !filter.Matches(test) {
 			continue
 		}

@@ -113,27 +113,54 @@ var listDependenciesCmd = &cobra.Command{
 	},
 }
 
+// TODO
 var countDependenciesCmd = &cobra.Command{
 	Use:   "count",
 	Short: "List dependencies",
 	Run: func(cmd *cobra.Command, args []string) {
-
+		flags := cmd.Flags()
+		outputFormat, _ := flags.GetString("output-format")
+		tests, err := listTests(flags)
+		if err != nil {
+			log.Errorf("Failed to list tests: %s", err)
+			return
+		}
+		total := 0
+		for _, test := range tests {
+			total += len(test.Dependencies)
+		}
+		if outputFormat == OutputFormatPlain {
+			fmt.Println(total)
+		} else if outputFormat == OutputFormatJson || outputFormat == OutputFormatYaml {
+			m := map[string]int{
+				"total": total,
+			}
+			if outputFormat == OutputFormatJson {
+				PrintJson(m)
+			} else {
+				PrintYaml(m)
+			}
+		} else {
+			log.Fatalf("Unknown output format: %s", outputFormat)
+		}
 	},
 }
 
+// TODO
 var checkDependenciesCmd = &cobra.Command{
 	Use:   "check",
 	Short: "Check dependencies",
 	Run: func(cmd *cobra.Command, args []string) {
-
+		panic("not implemented")
 	},
 }
 
+// TODO
 var resolveDependenciesCmd = &cobra.Command{
 	Use:   "resolve",
 	Short: "Resolve dependencies",
 	Run: func(cmd *cobra.Command, args []string) {
-
+		panic("not implemented")
 	},
 }
 

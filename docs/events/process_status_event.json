@@ -1,0 +1,9 @@
+{
+    "id": "5dd33672-bf8b-44ac-a09e-68b1114da4f1",
+    "time": "2023-11-04T21:45:03.808866",
+    "agent_id": "0b6ffe52-2a22-4f18-8435-22c193afe797",
+    "object_id": "66961232-7bf2-4e71-ba16-77d5562eab4a",
+    "object_type": "process",
+    "event_type": "status",
+    "status_type": "started"
+}

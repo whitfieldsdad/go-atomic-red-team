@@ -1,0 +1,10 @@
+{
+    "id": "a7ac3139-ad21-499b-9af1-a1d9c4e00ad4",
+    "time": "2023-11-04T21:44:58.854136",
+    "host_id": "150fa4be-8ed3-4a8a-9b46-7e42127e1c28",
+    "user_id": "c98ae676-7d6c-48f1-85f9-5b92c3546c70",
+    "agent_id": "0b6ffe52-2a22-4f18-8435-22c193afe797",
+    "test_id": "184c8c98-15e5-43cd-a034-4a2b4a76f8bb",
+    "test_invocation_id": "2d081765-32c8-40ae-b1f1-e32990cac404",
+    "status_type": "started"
+}

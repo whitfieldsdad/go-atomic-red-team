@@ -1,0 +1,12 @@
+{
+    "id": "a7ac3139-ad21-499b-9af1-a1d9c4e00ad4",
+    "time": "2023-11-04T21:44:58.854136",
+    "agent_id": "0b6ffe52-2a22-4f18-8435-22c193afe797",
+    "test_id": "184c8c98-15e5-43cd-a034-4a2b4a76f8bb",
+    "test_invocation_id": "2d081765-32c8-40ae-b1f1-e32990cac404",
+    "artifact_ids": [
+        "248512fc-d97f-4aad-b16b-420f62f44186",
+        "66961232-7bf2-4e71-ba16-77d5562eab4a",
+        "042cabac-7aea-4dd2-b127-6ab357d6ee1f"
+    ]
+}
