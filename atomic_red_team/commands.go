@@ -3,13 +3,11 @@ package atomic_red_team
 import (
 	"bytes"
 	"context"
-	"os"
 	"os/exec"
 	"runtime"
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/log"
 	"github.com/pkg/errors"
 )
 
@@ -29,79 +27,62 @@ func (command Command) Execute(ctx context.Context, opts *CommandOptions) (*Exec
 	return ExecuteCommand(ctx, command.Command, command.CommandType, opts)
 }
 
-type CommandOptions struct {
-	IncludeParentProcesses bool `json:"include_parent_processes"`
-}
-
-func NewCommandOptions() *CommandOptions {
-	return &CommandOptions{}
-}
-
 type ExecutedCommand struct {
-	Id        string    `json:"id"`
-	Time      time.Time `json:"time"`
-	Command   *Command  `json:"command"`
-	Processes []Process `json:"processes"`
+	Id               string    `json:"id"`
+	StartTime        time.Time `json:"start_time"`
+	EndTime          time.Time `json:"end_time"`
+	Command          Command   `json:"command"`
+	ExitCode         int       `json:"exit_code"`
+	Subprocess       Process   `json:"subprocess"`
+	RelatedProcesses []Process `json:"related_processes"`
+}
+
+func (result ExecutedCommand) GetProcesses() []Process {
+	var processes []Process
+	processes = append(processes, result.Subprocess)
+	processes = append(processes, result.RelatedProcesses...)
+	return processes
+}
+
+func (result ExecutedCommand) GetDuration() time.Duration {
+	return result.EndTime.Sub(result.StartTime)
 }
 
 func ExecuteCommand(ctx context.Context, command, commandType string, opts *CommandOptions) (*ExecutedCommand, error) {
-	now := time.Now()
-	executedCommand := &ExecutedCommand{
-		Id:   NewUUID4(),
-		Time: now,
-		Command: &Command{
-			Command:     command,
-			CommandType: commandType,
-		},
-	}
 	if opts == nil {
 		opts = NewCommandOptions()
 	}
-	subprocess, err := executeCommand(ctx, command, commandType)
+	argv, err := wrapCommand(command, commandType)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to wrap command")
+	}
+	startTime := time.Now()
+	subprocess, err := executeArgv(ctx, argv)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to execute command")
 	}
+	endTime := time.Now()
 
-	var processes []Process
+	var relatedProcesses []Process
 	if opts.IncludeParentProcesses {
-		ancestors, err := GetProcessAncestors(subprocess.PID)
+		relatedProcesses, err = GetProcessAncestors(subprocess.PID)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to get process ancestors")
+			return nil, errors.Wrap(err, "failed to get related processes")
 		}
-		processes = append(processes, ancestors...)
 	}
-	processes = append(processes, *subprocess)
-	executedCommand.Processes = processes
+	executedCommand := &ExecutedCommand{
+		Id:               NewUUID4(),
+		StartTime:        startTime,
+		EndTime:          endTime,
+		Command:          Command{Command: command, CommandType: commandType},
+		ExitCode:         *subprocess.ExitCode,
+		Subprocess:       *subprocess,
+		RelatedProcesses: relatedProcesses,
+	}
 	return executedCommand, nil
 }
 
-func executeCommand(ctx context.Context, command, commandType string) (*Process, error) {
-	var err error
-	pid := os.Getpid()
-	process, err := GetProcess(pid)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get process")
-	}
-	process.User, err = GetUser()
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get user")
-	}
-	argv, err := prepareCommand(command, DefaultCommandType)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to prepare command")
-	}
-	cmd, err := executeArgv(ctx, argv)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to execute command")
-	}
-	exitCode := cmd.ProcessState.ExitCode()
-	process.ExitCode = &exitCode
-	process.Stdout = cmd.Stdout.(*bytes.Buffer).String()
-	process.Stderr = cmd.Stderr.(*bytes.Buffer).String()
-	return process, nil
-}
-
-func executeArgv(ctx context.Context, argv []string) (*exec.Cmd, error) {
+func executeArgv(ctx context.Context, argv []string) (*Process, error) {
 	path, err := exec.LookPath(argv[0])
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to find command")
@@ -114,21 +95,34 @@ func executeArgv(ctx context.Context, argv []string) (*exec.Cmd, error) {
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 
+	// Execute the command.
 	err = cmd.Start()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to start command")
 	}
-	pid := cmd.Process.Pid
-	ppid := os.Getpid()
-	log.Debugf("Executing command: %s %s (PID: %d, PPID: %d)", path, strings.Join(argv, " "), pid, ppid)
 
-	log.Debugf("Waiting for command to exit (PID: %d, PPID: %d)", pid, ppid)
+	// Collect information about the subprocess.
+	pid := cmd.Process.Pid
+	process, err := GetProcess(pid)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to collect process metadata")
+	}
+	if process.Argv == nil || process.CommandLine == "" {
+		process.Argv = argv
+		process.CommandLine = strings.Join(argv, " ")
+	}
+
+	// Wait for the command to complete.
 	err = cmd.Wait()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to wait for command to exit")
 	}
-	log.Debugf("Command exited (PID: %d, PPID: %d, exit code: %d)", pid, ppid, cmd.ProcessState.ExitCode())
-	return cmd, nil
+	process.Stdout = stdout.String()
+	process.Stderr = stderr.String()
+
+	exitCode := cmd.ProcessState.ExitCode()
+	process.ExitCode = &exitCode
+	return process, nil
 }
 
 var (
@@ -141,7 +135,6 @@ var (
 )
 
 var (
-	commandTypes = []string{PowerShell, CommandPrompt, Sh, Bash}
 	commandShims = map[string][]string{
 		WindowsPowerShell: {"powershell", "-ExecutionPolicy", "Bypass", "-Command"},
 		PowerShellCore:    {"pwsh", "-Command"},
@@ -169,23 +162,11 @@ func getPowerShellCommandType() string {
 	return PowerShellCore
 }
 
-func prepareCommand(command, commandType string) ([]string, error) {
-	commandType, err := parseCommandType(commandType)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse command type")
-	}
-	shim, ok := commandShims[commandType]
-	if !ok {
+func wrapCommand(command, commandType string) ([]string, error) {
+	argv := commandShims[commandType]
+	if argv == nil {
 		return nil, errors.Errorf("invalid command type: %s", commandType)
 	}
-	return append(shim, command), nil
-}
-
-func parseCommandType(commandType string) (string, error) {
-	for _, validCommandType := range commandTypes {
-		if commandType == validCommandType {
-			return commandType, nil
-		}
-	}
-	return "", errors.Errorf("invalid command type: %s", commandType)
+	argv = append(argv, command)
+	return argv, nil
 }

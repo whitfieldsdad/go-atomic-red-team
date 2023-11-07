@@ -22,6 +22,15 @@ type Process struct {
 	Stderr      string     `json:"stderr,omitempty"`
 }
 
+func NewProcess(pid, ppid int) *Process {
+	return &Process{
+		Id:   NewUUID4(),
+		Time: time.Now(),
+		PID:  pid,
+		PPID: ppid,
+	}
+}
+
 func GetProcess(pid int) (*Process, error) {
 	p, err := sysinfo.Process(pid)
 	if err != nil {

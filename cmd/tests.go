@@ -14,16 +14,6 @@ import (
 	"github.com/whitfieldsdad/go-atomic-red-team/atomic_red_team"
 )
 
-const (
-	OutputFormatJson  = "json"
-	OutputFormatYaml  = "yaml"
-	OutputFormatPlain = "plain"
-)
-
-var (
-	lineSeparator = strings.Repeat("-", 80)
-)
-
 var testsCmd = &cobra.Command{
 	Use:   "tests",
 	Short: "Tests",
@@ -277,7 +267,7 @@ func printTestResultPlain(result atomic_red_team.TestResult) {
 	fmt.Println()
 	fmt.Printf("Processes:\n\n")
 	for _, command := range result.ExecutedCommands {
-		for _, process := range command.Processes {
+		for _, process := range command.GetProcesses() {
 			fmt.Printf("- %d,%d\n", process.PID, process.PPID)
 		}
 	}
@@ -285,7 +275,7 @@ func printTestResultPlain(result atomic_red_team.TestResult) {
 	fmt.Printf("Executables:\n\n")
 	var paths []string
 	for _, command := range result.ExecutedCommands {
-		for _, process := range command.Processes {
+		for _, process := range command.GetProcesses() {
 			if process.Executable != nil {
 				path := process.Executable.Path
 				if path != "" && !slices.Contains(paths, path) {

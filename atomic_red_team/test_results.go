@@ -20,9 +20,9 @@ func NewTestResult(testId string, test Test, executedCommands []ExecutedCommand)
 		return nil, errors.New("missing executed commands")
 	}
 	var startTime *time.Time
-	for _, command := range executedCommands {
-		if startTime == nil || command.Time.Before(*startTime) {
-			startTime = &command.Time
+	for _, executedCommand := range executedCommands {
+		if startTime == nil || executedCommand.StartTime.Before(*startTime) {
+			startTime = &executedCommand.StartTime
 		}
 	}
 	return &TestResult{
@@ -31,4 +31,20 @@ func NewTestResult(testId string, test Test, executedCommands []ExecutedCommand)
 		Test:             test,
 		ExecutedCommands: executedCommands,
 	}, nil
+}
+
+func (result TestResult) GetProcesses() []Process {
+	var processes []Process
+	for _, executedCommand := range result.ExecutedCommands {
+		processes = append(processes, executedCommand.GetProcesses()...)
+	}
+	return processes
+}
+
+func (result TestResult) GetCommands() []Command {
+	var commands []Command
+	for _, executedCommand := range result.ExecutedCommands {
+		commands = append(commands, executedCommand.Command)
+	}
+	return commands
 }

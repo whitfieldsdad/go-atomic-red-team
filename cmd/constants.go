@@ -1,9 +1,15 @@
 package cmd
 
+import "strings"
+
 type OutputFormat string
 
 const (
-	JsonlOutputFormat OutputFormat = "jsonl"
-	PlainOutputFormat OutputFormat = "plain"
-	BriefOutputFormat OutputFormat = "brief"
+	OutputFormatJson  = "json"
+	OutputFormatYaml  = "yaml"
+	OutputFormatPlain = "plain"
+)
+
+var (
+	lineSeparator = strings.Repeat("-", 80)
 )

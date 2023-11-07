@@ -1,6 +1,8 @@
 # TODO
 
-- [ ] Document command aliases
+- [ ] Read encrypted archive files
+  - [ ] AES-256-CBC
+  - [ ] AES-256-GCM
 - [ ] Add ability to limit number of objects returned (e.g. `--limit=1`)
 - [ ] Write script for overwriting bin/\* with the latest binaries
 - [ ] Document client options
