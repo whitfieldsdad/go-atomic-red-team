@@ -10,7 +10,7 @@ import (
 )
 
 func CreateTarball(archivePath string, filePaths []string) error {
-	file, err := os.Open(archivePath)
+	file, err := os.Create(archivePath)
 	if err != nil {
 		return err
 	}
