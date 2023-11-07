@@ -2,23 +2,36 @@ package atomic_red_team
 
 import (
 	"os/user"
-	"time"
 
 	"github.com/pkg/errors"
 )
 
 type User struct {
-	Id       string    `json:"id"`
-	Time     time.Time `json:"time"`
-	Name     string    `json:"name"`
-	Username string    `json:"username"`
-	UID      string    `json:"uid"`
-	GID      string    `json:"gid"`
-	GroupIds []string  `json:"group_ids"`
-	HomeDir  string    `json:"home_dir"`
+	Name     string   `json:"name"`
+	Username string   `json:"username"`
+	UID      string   `json:"uid"`
+	GID      string   `json:"gid"`
+	GroupIds []string `json:"group_ids"`
+	HomeDir  string   `json:"home_dir"`
 }
 
-func GetUser() (*User, error) {
+func GetCurrentUser() (*User, error) {
+	u, err := user.Current()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to lookup current user")
+	}
+	return getUserInfo(u)
+}
+
+func GetUser(username string) (*User, error) {
+	u, err := user.Lookup(username)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to lookup user")
+	}
+	return getUserInfo(u)
+}
+
+func getUserInfo(u *user.User) (*User, error) {
 	u, err := user.Current()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to lookup user")
@@ -28,8 +41,6 @@ func GetUser() (*User, error) {
 		return nil, errors.Wrap(err, "failed to lookup GIDs")
 	}
 	return &User{
-		Id:       NewUUID4(),
-		Time:     time.Now(),
 		Username: u.Username,
 		Name:     u.Name,
 		UID:      u.Uid,
