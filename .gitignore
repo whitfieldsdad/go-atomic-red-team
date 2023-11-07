@@ -6,3 +6,6 @@ README_files/
 
 # macOS
 .DS_Store
+
+# atomic-red-team
+private/atomic-red-team

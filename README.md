@@ -6,72 +6,65 @@ This repository provides a client for the [Atomic Red Team framework](https://gi
 
 ## Features
 
-- List, count, and execute tests from the Atomic Red Team framework;
+- List, count, and execute tests from the [Atomic Red Team framework](https://github.com/redcanaryco/atomic-red-team);
 - List, count, check, and resolve test dependencies;
-- List count, and inspect running processes; and
-- Execute commands
-- Auto-discover the location of the `atomic-red-team` repository<sub>1</sub>
-- Plaintext or JSONL output<sub>2</sub>
+- Plaintext, YAML, or JSONL output<sub>1</sub>
 
-<sub>1</sub> The following directories are enumerated when attempting to auto-discover the location of the `atomic-red-team` repository:
-
-| Directory                             | Platforms |
-| ------------------------------------- | --------- |
-| .                                     | All       |
-| ~                                     | All       |
-| /opt                                  | POSIX     |
-| /usr                                  | POSIX     |
-| /var                                  | POSIX     |
-| /etc                                  | POSIX     |
-| /tmp                                  | POSIX     |
-| /private                              | Darwin    |
-| $env:SystemDrive\\Program Files       | Windows   |
-| $env:SystemDrive\\Program Files (x86) | Windows   |
-| $env:SystemDrive\\ProgramData         | Windows   |
-| $env:SystemDrive\\Users               | Windows   |
-| $env:SystemDrive\\Windows             | Windows   |
-
-> 💡 Tip: the `ATOMICS_DIR` environment variable can be used to specify the location of the `atomics` folder.
-
-> 💡 Tip: auto-discovery is enabled by default and can be disabled by setting the `--auto-discover` flag to `false` (e.g. `tests --auto-discover=false list`)
-
-<sub>2</sub> All output is in JSONL format by default. This makes it easy to parse the output using tools like [jq](https://github.com/jqlang/jq) or [yq](https://github.com/mikefarah/yq).
+<sub>1</sub> All output is in JSONL format by default. This makes it easy to parse the output using tools like [jq](https://github.com/jqlang/jq) or [yq](https://github.com/mikefarah/yq).
 
 ## Usage
 
-This client is designed to be used in two different ways:
+### Local directory
 
-- As a standalone tool; or
-- As a library (e.g. as part of an endpoint agent).
+If you'd like to use a local copy of `atomic-red-team`:
 
-In either case, you'll need a local copy of the [Atomic Red Team git repository](https//github.com/redcanaryco/atomic-red-team).
-
-You can clone the repository using the following command:
+1. Download the latest release of the `atomic-red-team` repository
+2. Set `ATOMICS_DIR` to the path to the `atomic-red-team/atomics` directory
 
 ```shell
 git clone https://github.com/redcanaryco/atomic-red-team --depth=1
+export ATOMICS_DIR=$(realpath atomic-red-team/atomics)
 ```
 
-> By setting the clone depth to 1, you'll only download the latest commit. This will reduce the amount of time it takes to clone the repository.
+### Tarball file
 
-To update a local clone of the `atomic-red-team` repository, run the following command from the root of the repository:
+If you'd like to store tests in a tarball file, follow these steps:
+
+1. Download the latest release of the `atomic-red-team` repository
+2. Create an archive of the `atomic-red-team/atomics` directory using `tar`
+3. Set `ATOMICS_DIR` to the path to the tarball
 
 ```shell
-git pull
+git clone https://github.com/redcanaryco/atomic-red-team --depth=1
+tar -czf atomics.tar.gz --directory atomic-red-team/atomics .
+export ATOMICS_DIR=$(realpath atomics.tar.gz)
 ```
 
-Throughout this guide, the following commands are interchangeable:
+> Note: creating an archive involves opening and reading every file in the source directory. This step may fail if endpoint protection controls are enabled. In this case, you should temporarily disable endpoint protection controls while creating the archive.
+
+### Encrypted tarball file
+
+If you'd like to store tests in an encrypted tarball file, follow these steps:
+
+1. Download the latest release of the `atomic-red-team` repository
+2. Create an encrypted archive of the `atomic-red-team/atomics` directory using `tar` and `age`
+3. Set `ATOMICS_DIR` to the path to the tarball
 
 ```shell
-./run.ps1
-./bin/go-atomic-red-team-darwin-amd64
-./bin/go-atomic-red-team-darwin-arm64
-./bin/go-atomic-red-team-linux-386
-./bin/go-atomic-red-team-linux-amd64
-./bin/go-atomic-red-team-linux-arm64
-./bin/go-atomic-red-team-windows-amd64.exe
-./bin/go-atomic-red-team-windows-arm64.exe
+tar -czf atomics.tar.gz --directory atomic-red-team/atomics .
+age -p atomics.tar.gz > atomics.tar.gz.age
+export ATOMICS_DIR=$(realpath atomics.tar.gz.age)
 ```
+
+> Note: creating an archive involves opening and reading every file in the source directory. This step may fail if endpoint protection controls are enabled. In this case, you should temporarily disable endpoint protection controls while creating the archive.
+
+### Optional
+
+### Environment variables
+
+| Name | Description | Default |
+| --- | --- | --- |
+| `ATOMICS_DIR` | Path to the `atomic-red-team/atomics` directory | |
 
 ### Tests
 
@@ -117,12 +110,6 @@ go run main.go tests list --attack-technique-id="T1057" --platform=windows --ele
   "attack_technique_name": "Process Discovery"
 }
 ...
-```
-
-To list tests for techniques used by [APT15](https://attack.mitre.org/groups/G0004/), [APT28](https://attack.mitre.org/groups/G0007/), [APT41](https://attack.mitre.org/groups/G0096/):
-
-```shell
-go run main.go tests list --plan=
 ```
 
 #### Count tests

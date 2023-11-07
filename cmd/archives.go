@@ -3,6 +3,7 @@ package cmd
 import (
 	"github.com/charmbracelet/log"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/whitfieldsdad/go-atomic-red-team/atomic_red_team"
 )
 
@@ -19,7 +20,14 @@ var createArchiveCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		inputPaths := args
 		outputPath, _ := cmd.Flags().GetString("output-path")
-		err := atomic_red_team.CreateTarball(outputPath, inputPaths)
+		password, _ := cmd.Flags().GetString("password")
+
+		var err error
+		if password != "" {
+			err = atomic_red_team.CreateEncryptedTarballFile(outputPath, inputPaths, password)
+		} else {
+			err = atomic_red_team.CreateTarballFile(outputPath, inputPaths)
+		}
 		if err != nil {
 			log.Fatalf("Failed to create archive: %s", err)
 		}
@@ -31,6 +39,8 @@ func init() {
 	rootCmd.AddCommand(archivesCmd)
 	archivesCmd.AddCommand(createArchiveCmd)
 
-	createArchiveCmd.Flags().StringP("output-path", "o", "", "Output path")
+	flagset := pflag.FlagSet{}
+	flagset.StringP("output-path", "o", "", "Output path")
+	flagset.StringP("password", "p", "", "Password")
 	_ = createArchiveCmd.MarkFlagRequired("output-path")
 }

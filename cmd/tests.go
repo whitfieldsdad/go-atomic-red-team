@@ -64,7 +64,6 @@ var executeTestsCmd = &cobra.Command{
 			return
 		}
 		ctx := context.Background()
-
 		var results []atomic_red_team.TestResult
 		for _, test := range tests {
 			result, err := test.Run(ctx, atomicsDir, opts)
@@ -103,7 +102,6 @@ var listDependenciesCmd = &cobra.Command{
 	},
 }
 
-// TODO
 var countDependenciesCmd = &cobra.Command{
 	Use:   "count",
 	Short: "List dependencies",
@@ -136,7 +134,6 @@ var countDependenciesCmd = &cobra.Command{
 	},
 }
 
-// TODO
 var checkDependenciesCmd = &cobra.Command{
 	Use:   "check",
 	Short: "Check dependencies",
@@ -156,8 +153,9 @@ var resolveDependenciesCmd = &cobra.Command{
 
 func listTests(flags *pflag.FlagSet) ([]atomic_red_team.Test, error) {
 	atomicsDir, _ := flags.GetString("atomics-dir")
+	password, _ := flags.GetString("password")
 	filter := getCommandLineFilter(flags)
-	return atomic_red_team.ReadTests(atomicsDir, filter)
+	return atomic_red_team.ReadTests(atomicsDir, password, filter)
 }
 
 func getAtomicsDir(flags *pflag.FlagSet) string {
@@ -301,6 +299,7 @@ func init() {
 	// Add flags.
 	flagset := pflag.FlagSet{}
 	flagset.StringP("atomics-dir", "", atomic_red_team.DefaultAtomicsDir, "Path to atomic-red-team/atomics directory")
+	flagset.StringP("password", "", "", "Password for decrypting atomics-dir")
 	flagset.StringP("output-format", "o", OutputFormatPlain, "Output format")
 
 	flagset.StringSliceP("id", "", []string{}, "Test IDs")

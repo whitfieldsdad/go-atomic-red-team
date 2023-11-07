@@ -2,8 +2,6 @@ package atomic_red_team
 
 import (
 	"archive/tar"
-	"compress/gzip"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,19 +13,25 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func ReadTests(path string, filter *TestFilter) ([]Test, error) {
-	info, err := os.Stat(path)
+func ReadTests(directory, password string, filter *TestFilter) ([]Test, error) {
+	file, err := os.Open(directory)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to stat path")
+		return nil, err
+	}
+	info, err := file.Stat()
+	if err != nil {
+		return nil, err
 	}
 	if info.IsDir() {
-		return readTestsFromDirectory(path, filter)
-	} else if strings.HasSuffix(path, ".tar") {
-		return readTestsFromTarFile(path, filter)
-	} else if strings.HasSuffix(path, ".tar.gz") {
-		return readTestsFromTarballFile(path, filter)
+		return readTestsFromDirectory(directory, filter)
 	} else {
-		log.Fatalf("Unsupported file type: %s", path)
+		if strings.HasSuffix(directory, ".yaml") || strings.HasSuffix(directory, ".yml") {
+			return readTestsFromYamlFile(directory, filter)
+		} else if strings.HasSuffix(directory, ".tar.gz") || strings.HasSuffix(directory, ".tar.gz.age") {
+			return readTestsFromTarballFile(directory, password, filter)
+		} else {
+			return nil, errors.Errorf("unsupported file type: %s", directory)
+		}
 	}
 	return nil, nil
 }
@@ -54,7 +58,7 @@ func readTestsFromDirectory(directory string, filter *TestFilter) ([]Test, error
 
 	var tests []Test
 	for _, path := range paths {
-		testsFromFile, err := ReadTests(path, filter)
+		testsFromFile, err := readTestsFromYamlFile(path, filter)
 		if err != nil {
 			log.Warnf("Failed to read tests from file: %s", err)
 			continue
@@ -72,35 +76,24 @@ func readTestsFromYamlFile(path string, filter *TestFilter) ([]Test, error) {
 	return decodeAndFilterTests(data, filter)
 }
 
-func readTestsFromTarFile(path string, filter *TestFilter) ([]Test, error) {
+func readTestsFromTarballFile(path string, password string, filter *TestFilter) ([]Test, error) {
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to open file")
 	}
-	return readTestsFromTarFS(file, false, filter)
-}
-
-func readTestsFromTarballFile(path string, filter *TestFilter) ([]Test, error) {
-	file, err := os.Open(path)
+	var tarReader *tar.Reader
+	if password != "" {
+		tarReader, err = ReadEncryptedTarball(file, password)
+	} else {
+		tarReader, err = ReadTarball(file)
+	}
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to open file")
+		return nil, errors.Wrap(err, "failed to read tarball")
 	}
-	return readTestsFromTarFS(file, true, filter)
-}
-
-func readTestsFromTarFS(reader io.Reader, compressed bool, filter *TestFilter) ([]Test, error) {
-	var err error
-	if compressed {
-		reader, err = gzip.NewReader(reader)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to create gzip reader")
-		}
-	}
-	tfs := tarfs.New(tar.NewReader(reader))
-	afs := &afero.Afero{Fs: tfs}
+	fs := tarfs.New(tarReader)
+	afs := &afero.Afero{Fs: fs}
 
 	var tests []Test
-
 	afs.Walk("/", func(path string, info os.FileInfo, err error) error {
 		if StringMatchesPattern(path, "*T*/T*.yaml") {
 			blob, err := afs.ReadFile(path)
