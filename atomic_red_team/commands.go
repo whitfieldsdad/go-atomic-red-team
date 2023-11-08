@@ -3,11 +3,13 @@ package atomic_red_team
 import (
 	"bytes"
 	"context"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/pkg/errors"
 )
 
@@ -28,13 +30,13 @@ func (command Command) Execute(ctx context.Context, opts *CommandOptions) (*Exec
 }
 
 type ExecutedCommand struct {
-	Id               string    `json:"id"`
-	StartTime        time.Time `json:"start_time"`
-	EndTime          time.Time `json:"end_time"`
-	Command          Command   `json:"command"`
-	ExitCode         int       `json:"exit_code"`
-	Subprocess       Process   `json:"subprocess"`
-	RelatedProcesses []Process `json:"related_processes"`
+	Id               string    `json:"id" yaml:"id"`
+	StartTime        time.Time `json:"start_time" yaml:"start_time"`
+	EndTime          time.Time `json:"end_time" yaml:"end_time"`
+	Command          Command   `json:"command" yaml:"command"`
+	ExitCode         int       `json:"exit_code" yaml:"exit_code"`
+	Subprocess       Process   `json:"subprocess" yaml:"subprocess"`
+	RelatedProcesses []Process `json:"related_processes" yaml:"related_processes"`
 }
 
 func (result ExecutedCommand) GetProcesses() []Process {
@@ -65,9 +67,16 @@ func ExecuteCommand(ctx context.Context, command, commandType string, opts *Comm
 
 	var relatedProcesses []Process
 	if opts.IncludeParentProcesses {
-		relatedProcesses, err = GetProcessAncestors(subprocess.PID)
+		pid := os.Getpid()
+		relatedProcesses, err = GetProcessAncestors(pid)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to get related processes")
+			log.Errorf("Failed to lookup related processes: %s (PID: %d)", err, subprocess.PID)
+		}
+		self, err := GetProcess(pid)
+		if err != nil {
+			log.Errorf("Failed to lookup current process: %s (PID: %d)", err, pid)
+		} else {
+			relatedProcesses = append(relatedProcesses, *self)
 		}
 	}
 	executedCommand := &ExecutedCommand{
