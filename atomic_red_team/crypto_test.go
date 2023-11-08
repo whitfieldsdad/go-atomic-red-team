@@ -6,6 +6,23 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestAES256GCM(t *testing.T) {
+	a := []byte("plaintext")
+	password := "password"
+
+	k := KDF([]byte(password), nil)
+	c, err := SymmetricEncryptBytes(a, k, AES256GCM)
+	assert.Nil(t, err)
+	assert.NotNil(t, c)
+
+	b, err := SymmetricDecryptBytes(c, k, AES256GCM)
+	assert.Nil(t, err)
+	assert.NotNil(t, b)
+
+	// Ensure that the plaintext and decrypted ciphertext are the same.
+	assert.Equal(t, a, b)
+}
+
 func TestPBKDF2_HMAC_SHA256(t *testing.T) {
 	password := "password"
 	salt := []byte{0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f}

@@ -16,30 +16,29 @@ const (
 	DefaultSymmetricEncryptionAlgorithm = AES256GCM
 )
 
-func SymmetricEncryptBytes(plaintext []byte, password, algorithm string) ([]byte, error) {
+func SymmetricEncryptBytes(plaintext, key []byte, algorithm string) ([]byte, error) {
 	if algorithm == "" {
 		algorithm = DefaultSymmetricEncryptionAlgorithm
 	}
 	if algorithm == AES256GCM {
-		return AES256GCMEncryptBytes(plaintext, password)
+		return AES256GCMEncryptBytes(plaintext, key)
 	} else {
 		return nil, errors.New("unsupported algorithm")
 	}
 }
 
-func SymmetricDecryptBytes(ciphertext []byte, password, algorithm string) ([]byte, error) {
+func SymmetricDecryptBytes(ciphertext, key []byte, algorithm string) ([]byte, error) {
 	if algorithm == "" {
 		algorithm = DefaultSymmetricEncryptionAlgorithm
 	}
 	if algorithm == AES256GCM {
-		return AES256GCMDecryptBytes(ciphertext, password)
+		return AES256GCMDecryptBytes(ciphertext, key)
 	} else {
 		return nil, errors.New("unsupported algorithm")
 	}
 }
 
-func AES256GCMEncryptBytes(plaintext []byte, password string) ([]byte, error) {
-	key := []byte(password)
+func AES256GCMEncryptBytes(plaintext, key []byte) ([]byte, error) {
 	aes, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create cipher")
@@ -56,8 +55,8 @@ func AES256GCMEncryptBytes(plaintext []byte, password string) ([]byte, error) {
 	return ciphertext, nil
 }
 
-func AES256GCMDecryptBytes(ciphertext []byte, password string) ([]byte, error) {
-	aes, err := aes.NewCipher([]byte(password))
+func AES256GCMDecryptBytes(ciphertext, key []byte) ([]byte, error) {
+	aes, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create cipher")
 	}
