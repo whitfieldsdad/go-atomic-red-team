@@ -7,4 +7,5 @@ fi
 
 output_path="${1}"
 rm -f "${output_path}"
+
 wget -O- -q https://api.github.com/repos/redcanaryco/atomic-red-team/tarball | age -p > "${output_path}"
