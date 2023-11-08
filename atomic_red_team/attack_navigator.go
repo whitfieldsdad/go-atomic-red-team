@@ -1,7 +1,12 @@
 package atomic_red_team
 
 import (
+	"encoding/json"
+	"io"
+	"os"
+
 	"github.com/mitchellh/mapstructure"
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -23,27 +28,29 @@ func NewAttackNavigatorLayer(techniqueIds []string) (*AttackNavigatorLayer, erro
 }
 
 type AttackNavigatorLayer struct {
-	Name       string                     `json:"name"`
-	Domain     string                     `json:"domain"`
-	Techniques []AttackNavigatorTechnique `json:"techniques"`
+	Name       string                     `json:"name" yaml:"name"`
+	Domain     string                     `json:"domain" yaml:"domain"`
+	Techniques []AttackNavigatorTechnique `json:"techniques" yaml:"techniques"`
 }
 
 type AttackNavigatorTechnique struct {
-	TechniqueID string `json:"techniqueID"`
-	Enabled     bool   `json:"enabled"`
-	Color       string `json:"color,omitempty"`
+	TechniqueID string `json:"techniqueID" yaml:"techniqueID"`
+	Enabled     bool   `json:"enabled" yaml:"enabled"`
+	Color       string `json:"color,omitempty" yaml:"color,omitempty"`
 }
 
 func (layer AttackNavigatorLayer) GetSelectedTechniqueIDs() []string {
 	var ids []string
 	for _, technique := range layer.Techniques {
-		if !technique.Enabled {
-			continue
-		}
 		if technique.TechniqueID == "" || technique.Color == "" {
 			continue
 		}
+		if !technique.Enabled {
+			continue
+		}
+		ids = append(ids, technique.TechniqueID)
 	}
+	slices.Sort(ids)
 	return ids
 }
 
@@ -54,6 +61,25 @@ func (layer AttackNavigatorLayer) ToTestPlan() TestPlanInterface {
 	return BulkTestPlan{
 		Tests: []TestFilter{testFilter},
 	}
+}
+
+func ReadAttackNavigatorLayer(path string) (*AttackNavigatorLayer, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	blob, err := io.ReadAll(file)
+	if err != nil {
+		return nil, err
+	}
+	m := make(map[string]interface{})
+	err = json.Unmarshal(blob, &m)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAttackNavigatorLayer(m)
 }
 
 func ParseAttackNavigatorLayer(data map[string]interface{}) (*AttackNavigatorLayer, error) {
