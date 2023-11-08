@@ -11,8 +11,8 @@ const (
 )
 
 type TestOptions struct {
-	InputArguments map[string]interface{} `json:"input_arguments"`
-	CommandOptions *CommandOptions        `json:"command_options"`
+	InputArguments map[string]interface{} `json:"input_arguments" yaml:"input_arguments"`
+	CommandOptions *CommandOptions        `json:"command_options" yaml:"command_options"`
 }
 
 func NewTestOptions() *TestOptions {
@@ -23,7 +23,8 @@ func NewTestOptions() *TestOptions {
 }
 
 type CommandOptions struct {
-	IncludeParentProcesses bool `json:"include_parent_processes"`
+	IncludeParentProcesses bool `json:"include_parent_processes" yaml:"include_parent_processes"`
+	IncludeCommandOutput   bool `json:"include_command_output" yaml:"include_command_output"`
 }
 
 func NewCommandOptions() *CommandOptions {

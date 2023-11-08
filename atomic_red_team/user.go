@@ -7,12 +7,12 @@ import (
 )
 
 type User struct {
-	Name     string   `json:"name"`
-	Username string   `json:"username"`
-	UID      string   `json:"uid"`
-	GID      string   `json:"gid"`
-	GroupIds []string `json:"group_ids"`
-	HomeDir  string   `json:"home_dir"`
+	Name     string   `json:"name" yaml:"name"`
+	Username string   `json:"username" yaml:"username"`
+	UID      string   `json:"uid" yaml:"uid"`
+	GID      string   `json:"gid" yaml:"gid"`
+	GroupIds []string `json:"group_ids" yaml:"group_ids"`
+	HomeDir  string   `json:"home_dir" yaml:"home_dir"`
 }
 
 func GetCurrentUser() (*User, error) {

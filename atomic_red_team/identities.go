@@ -9,7 +9,7 @@ const (
 )
 
 type EndpointIdentities struct {
-	HostId string `json:"host_id"`
+	HostId string `json:"host_id" yaml:"host_id"`
 }
 
 func GetEndpointIdentities() (*EndpointIdentities, error) {

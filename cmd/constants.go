@@ -8,6 +8,7 @@ const (
 	OutputFormatJson  = "json"
 	OutputFormatYaml  = "yaml"
 	OutputFormatPlain = "plain"
+	OutputFormatBrief = "brief"
 )
 
 var (

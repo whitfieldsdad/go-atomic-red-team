@@ -8,18 +8,18 @@ import (
 )
 
 type Process struct {
-	Id          string     `json:"id"`
-	Time        time.Time  `json:"time"`
-	StartTime   *time.Time `json:"start_time"`
-	User        *User      `json:"user"`
-	PID         int        `json:"pid"`
-	PPID        int        `json:"ppid"`
-	Executable  *File      `json:"executable"`
-	CommandLine string     `json:"command"`
-	Argv        []string   `json:"argv"`
-	ExitCode    *int       `json:"exit_code,omitempty"`
-	Stdout      string     `json:"stdout,omitempty"`
-	Stderr      string     `json:"stderr,omitempty"`
+	Id          string     `json:"id" yaml:"id"`
+	Time        time.Time  `json:"time" yaml:"time"`
+	StartTime   *time.Time `json:"start_time,omitempty" yaml:"start_time,omitempty"`
+	User        *User      `json:"user,omitempty" yaml:"user,omitempty"`
+	PID         int        `json:"pid" yaml:"pid"`
+	PPID        int        `json:"ppid" yaml:"ppid"`
+	Executable  *File      `json:"executable,omitempty" yaml:"executable,omitempty"`
+	CommandLine string     `json:"command" yaml:"command"`
+	Argv        []string   `json:"argv" yaml:"argv"`
+	ExitCode    *int       `json:"exit_code,omitempty" yaml:"exit_code,omitempty"`
+	Stdout      string     `json:"stdout,omitempty" yaml:"stdout,omitempty"`
+	Stderr      string     `json:"stderr,omitempty" yaml:"stderr,omitempty"`
 }
 
 func NewProcess(pid, ppid int) *Process {

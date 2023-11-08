@@ -22,6 +22,7 @@ var testsCmd = &cobra.Command{
 var listTestsCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List tests",
+	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		flags := cmd.Flags()
 		outputFormat, _ := flags.GetString("output-format")
@@ -39,6 +40,7 @@ var listTestsCmd = &cobra.Command{
 var countTestsCmd = &cobra.Command{
 	Use:   "count",
 	Short: "Count tests",
+	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		tests, err := listTests(cmd.Flags())
 		if err != nil {
@@ -52,6 +54,7 @@ var countTestsCmd = &cobra.Command{
 var executeTestsCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Run tests",
+	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		flags := cmd.Flags()
 		outputFormat, _ := flags.GetString("output-format")
@@ -68,7 +71,7 @@ var executeTestsCmd = &cobra.Command{
 		for _, test := range tests {
 			result, err := test.Run(ctx, atomicsDir, opts)
 			if err != nil {
-				log.Fatalf("Failed to execute test %s: %s", test.Name, err)
+				log.Fatalf("Failed to execute test '%s': %s", test.GetDisplayName(), err)
 			}
 			results = append(results, *result)
 		}
@@ -86,6 +89,7 @@ var dependenciesCmd = &cobra.Command{
 var listDependenciesCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List dependencies",
+	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		flags := cmd.Flags()
 		outputFormat, _ := flags.GetString("output-format")
@@ -105,6 +109,7 @@ var listDependenciesCmd = &cobra.Command{
 var countDependenciesCmd = &cobra.Command{
 	Use:   "count",
 	Short: "List dependencies",
+	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		flags := cmd.Flags()
 		outputFormat, _ := flags.GetString("output-format")
@@ -134,27 +139,24 @@ var countDependenciesCmd = &cobra.Command{
 	},
 }
 
-var checkDependenciesCmd = &cobra.Command{
-	Use:   "check",
-	Short: "Check dependencies",
-	Run: func(cmd *cobra.Command, args []string) {
-		panic("not implemented")
-	},
-}
-
-// TODO
-var resolveDependenciesCmd = &cobra.Command{
-	Use:   "resolve",
-	Short: "Resolve dependencies",
-	Run: func(cmd *cobra.Command, args []string) {
-		panic("not implemented")
-	},
-}
-
 func listTests(flags *pflag.FlagSet) ([]atomic_red_team.Test, error) {
 	atomicsDir, _ := flags.GetString("atomics-dir")
 	password, _ := flags.GetString("password")
-	filter := getCommandLineFilter(flags)
+
+	var filter *atomic_red_team.TestFilter
+	commandLineFilter := getCommandLineFilter(flags)
+	var testPlanFilter *atomic_red_team.TestFilter
+
+	if commandLineFilter != nil && testPlanFilter != nil {
+		log.Infof("Merging command line filter and test plan filter")
+		filter = atomic_red_team.MergeTestFilters(*commandLineFilter, *testPlanFilter)
+	} else if commandLineFilter != nil {
+		log.Infof("Using command line filter")
+		filter = commandLineFilter
+	} else if testPlanFilter != nil {
+		log.Infof("Using test plan filter")
+		filter = testPlanFilter
+	}
 	return atomic_red_team.ReadTests(atomicsDir, password, filter)
 }
 
@@ -188,6 +190,24 @@ func getCommandLineFilter(flags *pflag.FlagSet) *atomic_red_team.TestFilter {
 	return f
 }
 
+func getTestPlanFilter(flags *pflag.FlagSet) *atomic_red_team.TestFilter {
+	var filters []atomic_red_team.TestFilter
+	paths, _ := flags.GetStringSlice("plan")
+	if len(paths) > 0 {
+		for _, path := range paths {
+			plan, err := atomic_red_team.ReadTestPlan(path)
+			if err != nil {
+				log.Fatalf("Failed to read test plan: %s - %s", path, err)
+			}
+			filters = append(filters, plan.GetTestFilters()...)
+		}
+	}
+	if len(filters) > 0 {
+		return atomic_red_team.MergeTestFilters(filters...)
+	}
+	return nil
+}
+
 func printTest(test atomic_red_team.Test, outputFormat string) {
 	if outputFormat == OutputFormatPlain {
 		printTestPlain(test)
@@ -196,6 +216,8 @@ func printTest(test atomic_red_team.Test, outputFormat string) {
 		PrintJson(test)
 	} else if outputFormat == OutputFormatYaml {
 		PrintYaml(test)
+	} else if outputFormat == OutputFormatBrief {
+		fmt.Printf("%s\n", test.GetDisplayName())
 	} else {
 		log.Fatalf("Unknown output format: %s", outputFormat)
 	}
@@ -212,6 +234,7 @@ func printTestPlain(test atomic_red_team.Test) {
 	fmt.Printf("Supported platforms: %s\n", strings.Join(test.SupportedPlatforms, ","))
 	fmt.Printf("Command type: %s\n", test.Executor.Name)
 	fmt.Printf("Requires elevation: %v\n", test.Executor.ElevationRequired)
+	fmt.Printf("Total dependencies: %d\n", len(test.Dependencies))
 	fmt.Println()
 	fmt.Printf("Commands:\n\n%s\n", strings.TrimRight(test.Executor.Command, "\n"))
 	if test.Executor.CleanupCommand != "" {
@@ -294,7 +317,7 @@ func init() {
 	testsCmd.AddCommand(listTestsCmd, countTestsCmd, executeTestsCmd)
 
 	testsCmd.AddCommand(dependenciesCmd)
-	dependenciesCmd.AddCommand(listDependenciesCmd, countDependenciesCmd, checkDependenciesCmd, resolveDependenciesCmd)
+	dependenciesCmd.AddCommand(listDependenciesCmd, countDependenciesCmd)
 
 	// Add flags.
 	flagset := pflag.FlagSet{}
@@ -319,7 +342,6 @@ func init() {
 	executeTestsCmd.Flags().AddFlagSet(&flagset)
 	listDependenciesCmd.Flags().AddFlagSet(&flagset)
 	countDependenciesCmd.Flags().AddFlagSet(&flagset)
-	checkDependenciesCmd.Flags().AddFlagSet(&flagset)
 
 	// Add some flags specific to executing tests.
 	executeTestsCmd.Flags().BoolP("include-parent-processes", "", atomic_red_team.IncludeParentProcesses, "Include parent processes")

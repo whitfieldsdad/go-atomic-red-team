@@ -13,8 +13,18 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func ReadTests(directory, password string, filter *TestFilter) ([]Test, error) {
-	file, err := os.Open(directory)
+func ReadTests(path, password string, filter *TestFilter) ([]Test, error) {
+	log.Infof("Reading tests from %s", path)
+	tests, err := readTests(path, password, filter)
+	if err != nil {
+		return nil, err
+	}
+	log.Infof("Read %d tests from %s", len(tests), path)
+	return tests, nil
+}
+
+func readTests(path, password string, filter *TestFilter) ([]Test, error) {
+	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
@@ -23,17 +33,15 @@ func ReadTests(directory, password string, filter *TestFilter) ([]Test, error) {
 		return nil, err
 	}
 	if info.IsDir() {
-		return readTestsFromDirectory(directory, filter)
+		return readTestsFromDirectory(path, filter)
 	} else {
-		if strings.HasSuffix(directory, ".yaml") || strings.HasSuffix(directory, ".yml") {
-			return readTestsFromYamlFile(directory, filter)
-		} else if strings.HasSuffix(directory, ".tar.gz") || strings.HasSuffix(directory, ".tar.gz.age") {
-			return readTestsFromTarballFile(directory, password, filter)
-		} else {
-			return nil, errors.Errorf("unsupported file type: %s", directory)
+		if strings.HasSuffix(path, ".yaml") || strings.HasSuffix(path, ".yml") {
+			return readTestsFromYamlFile(path, filter)
+		} else if strings.HasSuffix(path, ".tar.gz") || strings.HasSuffix(path, ".tar.gz.age") {
+			return readTestsFromTarballFile(path, password, filter)
 		}
 	}
-	return nil, nil
+	return nil, errors.Errorf("unsupported file type: %s", path)
 }
 
 func readTestsFromDirectory(directory string, filter *TestFilter) ([]Test, error) {
@@ -134,9 +142,9 @@ func decodeTests(data []byte) ([]Test, error) {
 	for i, test := range tests {
 		test.AttackTechniqueId = attackTechniqueId
 		test.AttackTechniqueName = attackTechniqueName
-
 		for j, dependency := range test.Dependencies {
-			dependency.executorName = test.DependencyExecutorName
+			dependency.ExecutorName = test.DependencyExecutorName
+			dependency.InputArguments = test.InputArguments
 			test.Dependencies[j] = dependency
 		}
 		tests[i] = test

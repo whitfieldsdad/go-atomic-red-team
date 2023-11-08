@@ -2,11 +2,10 @@ package atomic_red_team
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
-	"reflect"
 
 	"github.com/charmbracelet/log"
-	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/mitchellh/mapstructure"
 	"github.com/pkg/errors"
 )
@@ -17,8 +16,8 @@ type TestPlanInterface interface {
 }
 
 type BulkTestPlan struct {
-	Tests          []TestFilter           `json:"tests,omitempty"`
-	InputArguments map[string]interface{} `json:"input_arguments,omitempty"`
+	Tests          []TestFilter           `json:"tests" yaml:"tests"`
+	InputArguments map[string]interface{} `json:"input_arguments" yaml:"input_arguments"`
 }
 
 func (plan BulkTestPlan) GetTestFilters() []TestFilter {
@@ -33,10 +32,9 @@ func (plan BulkTestPlan) GetTestOptions() TestOptions {
 	}
 }
 
-// MultiTestPlan provides a way to run multiple tests with different input arguments and an optional set of global arguments.
 type TestPlan struct {
-	Tests          []testReference        `json:"tests,omitempty"`
-	InputArguments map[string]interface{} `json:"input_arguments,omitempty"`
+	Tests          []testReference        `json:"tests" yaml:"tests"`
+	InputArguments map[string]interface{} `json:"input_arguments" yaml:"input_arguments"`
 }
 
 func (plan TestPlan) GetTestFilters() []TestFilter {
@@ -54,12 +52,12 @@ func (plan TestPlan) GetTestOptions() TestOptions {
 }
 
 type testReference struct {
-	Id                string   `json:"id,omitempty"`
-	Name              string   `json:"name,omitempty"`
-	Description       string   `json:"description,omitempty"`
-	Platforms         []string `json:"platforms,omitempty"`
-	ElevationRequired *bool    `json:"elevation_required,omitempty"`
-	AttackTechniqueId string   `json:"attack_technique_id,omitempty"`
+	Id                string   `json:"id" yaml:"id"`
+	Name              string   `json:"name" yaml:"name"`
+	Description       string   `json:"description" yaml:"description"`
+	Platforms         []string `json:"platforms" yaml:"platforms"`
+	ElevationRequired *bool    `json:"elevation_required" yaml:"elevation_required"`
+	AttackTechniqueId string   `json:"attack_technique_id" yaml:"attack_technique_id"`
 }
 
 func (t testReference) GetTestFilter() TestFilter {
@@ -104,11 +102,14 @@ func ReadTestPlan(path string) (TestPlanInterface, error) {
 
 func ParseTestPlan(data map[string]interface{}) (TestPlanInterface, error) {
 	if isAttackNavigatorLayer(data) {
+		fmt.Println("Is a navigator layer")
 		layer, err := ParseAttackNavigatorLayer(data)
 		if err != nil {
 			return nil, err
 		}
 		return layer.ToTestPlan(), nil
+	} else {
+		fmt.Println("Not a navigator layer")
 	}
 	return parseTestPlan(data)
 }
@@ -118,7 +119,7 @@ func isAttackNavigatorLayer(data map[string]interface{}) bool {
 	if ok {
 		for _, technique := range data["techniques"].([]interface{}) {
 			m, _ := technique.(map[string]interface{})
-			if _, ok := m["techniqueID"]; !ok {
+			if _, ok := m["techniqueID"]; ok {
 				return true
 			}
 		}
@@ -131,8 +132,8 @@ func parseTestPlan(data map[string]interface{}) (TestPlanInterface, error) {
 	var err error
 
 	// Parse the test plan as either a multi-test plan or as a bulk test plan.
-	testPlanFields := getMapKeySet(data)
-	testReferenceFields, _, testFilterFields := diffStructFieldSets(testReference{}, TestFilter{})
+	testPlanFields := getMapKeys(data)
+	testReferenceFields, _, testFilterFields := diffStructFields(testReference{}, TestFilter{})
 
 	if testPlanFields.IsSubset(testReferenceFields) {
 		log.Info("Parsing test plan as a multi-test plan")
@@ -144,39 +145,4 @@ func parseTestPlan(data map[string]interface{}) (TestPlanInterface, error) {
 		return nil, errors.New("failed to determine test plan type")
 	}
 	return plan, err
-}
-
-func getMapKeySet(m map[string]interface{}) mapset.Set[string] {
-	keys := mapset.NewSet[string]()
-	for k := range m {
-		keys.Add(k)
-	}
-	return keys
-}
-
-// diffStructFieldSets returns the triple: (a - b), (a ∩ b), (b - a)
-func diffStructFieldSets(a, b interface{}) (mapset.Set[string], mapset.Set[string], mapset.Set[string]) {
-	sa := getStructFieldSet(a)
-	sb := getStructFieldSet(b)
-	si := sa.Intersect(sb)
-	sa = sa.Difference(si)
-	sb = sb.Difference(si)
-	return sa, si, sb
-}
-
-func getStructFields(i interface{}) []string {
-	var fields []string
-	t := reflect.TypeOf(i)
-	for i := 0; i < t.NumField(); i++ {
-		fields = append(fields, t.Field(i).Name)
-	}
-	return fields
-}
-
-func getStructFieldSet(i interface{}) mapset.Set[string] {
-	fields := mapset.NewSet[string]()
-	for _, field := range getStructFields(i) {
-		fields.Add(field)
-	}
-	return fields
 }

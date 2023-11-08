@@ -6,13 +6,14 @@ import (
 )
 
 type TestFilter struct {
-	Ids                []string `json:"ids,omitempty"`
-	Names              []string `json:"names,omitempty"`
-	Descriptions       []string `json:"descriptions,omitempty"`
-	Platforms          []string `json:"platforms,omitempty"`
-	ExecutorTypes      []string `json:"executor_types,omitempty"`
-	ElevationRequired  *bool    `json:"elevation_required,omitempty"`
-	AttackTechniqueIds []string `json:"attack_technique_ids,omitempty"`
+	Ids                     []string `json:"ids" yaml:"ids"`
+	Names                   []string `json:"names" yaml:"names"`
+	Descriptions            []string `json:"descriptions" yaml:"descriptions"`
+	Platforms               []string `json:"platforms" yaml:"platforms"`
+	ExecutorTypes           []string `json:"executor_types" yaml:"executor_types"`
+	ElevationRequired       *bool    `json:"elevation_required" yaml:"elevation_required"`
+	AttackTechniqueIds      []string `json:"attack_technique_ids" yaml:"attack_technique_ids"`
+	ReferencesAtomicsFolder *bool    `json:"references_atomics_folder" yaml:"references_atomics_folder"`
 }
 
 func NewTestFilter() (*TestFilter, error) {
@@ -45,6 +46,9 @@ func (f TestFilter) Matches(t Test) bool {
 	if f.ElevationRequired != nil && *f.ElevationRequired != t.Executor.ElevationRequired {
 		return false
 	}
+	if f.ReferencesAtomicsFolder != nil && *f.ReferencesAtomicsFolder != t.HasReferencesToAtomicsFolder() {
+		return false
+	}
 	return true
 }
 
@@ -60,17 +64,14 @@ func getAttackTechniqueIdsFromTestFilters(testFilters []TestFilter) []string {
 	return attackTechniqueIds
 }
 
-func mergeTestFilters(filters ...TestFilter) TestFilter {
-	var combined TestFilter
+func MergeTestFilters(filters ...TestFilter) *TestFilter {
+	combined := &TestFilter{}
 	for _, filter := range filters {
 		combined.Ids = append(combined.Ids, filter.Ids...)
 		combined.Names = append(combined.Names, filter.Names...)
 		combined.Descriptions = append(combined.Descriptions, filter.Descriptions...)
 		combined.Platforms = append(combined.Platforms, filter.Platforms...)
 		combined.ExecutorTypes = append(combined.ExecutorTypes, filter.ExecutorTypes...)
-		if filter.ElevationRequired != nil {
-			combined.ElevationRequired = filter.ElevationRequired
-		}
 		combined.AttackTechniqueIds = append(combined.AttackTechniqueIds, filter.AttackTechniqueIds...)
 	}
 	return combined

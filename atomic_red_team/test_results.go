@@ -6,10 +6,11 @@ import (
 )
 
 type TestResult struct {
-	Id               string            `json:"id"`
-	Time             time.Time         `json:"time"`
-	Test             Test              `json:"test"`
-	ExecutedCommands []ExecutedCommand `json:"executed_commands"`
+	Id               string                       `json:"id" yaml:"id"`
+	Time             time.Time                    `json:"time" yaml:"time"`
+	Test             Test                         `json:"test" yaml:"test"`
+	ExecutedCommands []ExecutedCommand            `json:"executed_commands" yaml:"executed_commands"`
+	Dependencies     []DependencyResolutionResult `json:"dependencies,omitempty" yaml:"dependencies"`
 }
 
 func NewTestResult(testId string, test Test, executedCommands []ExecutedCommand) (*TestResult, error) {
