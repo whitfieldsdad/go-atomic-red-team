@@ -6,6 +6,7 @@ all: help
 
 help:
 	@echo "build - Build all binaries"
+	@echo "update - Update data files"
 	@echo "docs - Generate documentation"
 	@echo "[test|tests] - Run tests"
 	@echo "windows - Build Windows binaries"
@@ -27,6 +28,10 @@ bin: build
 build: windows linux darwin
 	chmod +x bin/*
 	du -sh bin/*
+
+update:
+	wget https://raw.githubusercontent.com/mitre-attack/attack-stix-data/master/enterprise-attack/enterprise-attack.json -O ./data/stix2/mitre-attack-enterprise.json
+	wget https://api.github.com/repos/redcanaryco/atomic-red-team/tarball -O ./data/atomic-red-team/atomic-red-team.tar.gz
 
 test:
 	go test -v ./...

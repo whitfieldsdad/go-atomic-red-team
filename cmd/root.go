@@ -7,8 +7,8 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "go-atomic-red-team",
-	Short: "Atomic Red Team",
+	Use:   "go-atomic",
+	Short: "",
 }
 
 func init() {
